@@ -1,0 +1,1008 @@
+<script>
+/* ==========================================================================
+   LPB · Cliente
+   --------------------------------------------------------------------------
+   No contiene ni un registro de la lista. Todo se pide al servidor y solo
+   regresan las filas coincidentes. El soporte documental tampoco viaja al
+   navegador cuando el usuario carece del permiso: se recorta en el servidor.
+   ========================================================================== */
+
+var SESION = null, ULTIMO = null, RELOJ = null, VIGILANTE = null;
+var INICIO = new Date().getTime();
+
+/* ---------- Control de inactividad ----------
+   El navegador vigila la actividad del usuario y avisa al servidor solo
+   cuando la hay. El latido periódico consulta si la sesión sigue viva, pero
+   NO renueva el plazo: si únicamente estuviera abierta la pestaña, la sesión
+   debe vencer igual. */
+var ULTIMA_ACTIVIDAD = new Date().getTime();
+var ULTIMO_LATIDO = new Date().getTime();
+var LATIDO = null;
+var MINUTOS_INACTIVIDAD = 20;
+
+/**
+ * Consulta a la que pertenece el RFC capturado en el refinamiento.
+ *
+ * El RFC identifica a UNA persona concreta. Si el analista busca a Juan Pérez
+ * con su RFC y luego busca a María López sin borrarlo, el sistema aplicaría el
+ * RFC de Juan a la búsqueda de María — y podría arrojar una coincidencia
+ * CONFIRMADA falsa. Por eso el refinamiento se vincula al texto con el que se
+ * capturó y se invalida solo si la consulta cambia.
+ */
+var RFC_VINCULADO = '';
+
+var ICO = {
+  candado:'<rect x="4" y="10" width="16" height="11" rx="1.5"/><path d="M8 10V7a4 4 0 018 0v3"/>',
+  escudo:'<path d="M12 2l8 3.5v6c0 4.5-3.2 8.6-8 10.5-4.8-1.9-8-6-8-10.5v-6L12 2z"/>',
+  alerta:'<path d="M12 3l9.5 17h-19L12 3z"/><path d="M12 10v4"/><path d="M12 17.4v.6"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.4v.6"/>',
+  check:'<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
+  usuarios:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 5a3.5 3.5 0 010 7"/><path d="M17.5 14.5A6.5 6.5 0 0121.5 20"/>',
+  calendario:'<rect x="3" y="5" width="18" height="16" rx="1.5"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>',
+  cedula:'<rect x="2.5" y="5" width="19" height="14" rx="1.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5 16.4c.6-1.4 2-2.2 3.5-2.2s2.9.8 3.5 2.2"/><path d="M15 10h4"/><path d="M15 14h4"/>',
+  huella:'<path d="M12 3a7 7 0 017 7v2"/><path d="M5 10a7 7 0 013.5-6"/><path d="M8.5 10a3.5 3.5 0 017 0v4"/><path d="M12 10v6"/><path d="M5 14v3"/><path d="M19 15v2"/>',
+  flecha:'<path d="M9 6l6 6-6 6"/>',
+  vacio:'<circle cx="11" cy="11" r="7.5"/><path d="M20 20l-4.3-4.3"/><path d="M8.5 11h5"/>',
+  pdf:'<path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M13 2v7h7"/><path d="M12 12v6"/><path d="M9 15l3 3 3-3"/>',
+  mas:'<path d="M12 5v14"/><path d="M5 12h14"/>',
+  limpiar:'<path d="M18 6L6 18"/><path d="M6 6l12 12"/>',
+  liga:'<path d="M10 13a5 5 0 007.5.5l2-2a5 5 0 00-7-7l-1 1"/><path d="M14 11a5 5 0 00-7.5-.5l-2 2a5 5 0 007 7l1-1"/>',
+  brujula:'<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+  balanza:'<path d="M12 4v16"/><path d="M7 20h10"/><path d="M12 7l7 2-2.5 5h5L19 9"/><path d="M12 7L5 9l2.5 5h-5L5 9"/>'
+};
+function svg(n){ return '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">' + ICO[n] + '</svg>'; }
+
+function $(i){ return document.getElementById(i); }
+function esc(s){
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function fechaMx(iso){
+  if (!iso) return '—';
+  var p = String(iso).split('-');
+  return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(iso);
+}
+function iniciales(n){
+  var p = String(n||'').trim().split(/\s+/);
+  return (((p[0]||'')[0]||'') + ((p[1]||'')[0]||'')).toUpperCase();
+}
+function errorHtml(m){ return '<div class="error">' + svg('alerta') + '<div>' + esc(m) + '</div></div>'; }
+
+/** Quita el splash. Idempotente y a prueba de fallas. */
+function cerrarSplash(){
+  clearTimeout(VIGILANTE);
+  var s = $('splash');
+  if (s) s.classList.add('fuera');
+}
+
+/* ---------- Arranque ---------- */
+document.addEventListener('DOMContentLoaded', function(){
+
+  // VIGILANTE: el splash nunca puede dejar atrapado al usuario. Si en 8
+  // segundos no llegó la sesión —por una falla del servidor o porque la
+  // respuesta no se pudo serializar y ningún manejador se disparó— la
+  // pantalla se retira igual y se muestra el motivo.
+  VIGILANTE = setTimeout(function(){
+    cerrarSplash();
+    if (!SESION) {
+      $('salida').innerHTML = errorHtml(
+        'No se recibió respuesta del servidor al iniciar la sesión. ' +
+        'Recargue la página; si el problema persiste, avise al administrador del sistema.');
+    }
+  }, 8000);
+
+  google.script.run
+    .withSuccessHandler(function(s){
+      try { arrancar(s); }
+      catch (err) { cerrarSplash(); $('salida').innerHTML = errorHtml('Error al preparar la sesión: ' + err.message); }
+    })
+    .withFailureHandler(function(e){
+      cerrarSplash();
+      $('salida').innerHTML = errorHtml(e.message);
+    })
+    .apiSesion();
+
+  $('btnBuscar').addEventListener('click', function(){ buscar(false); });
+  $('q').addEventListener('keydown', function(e){ if (e.key === 'Enter') buscar(false); });
+  $('q').addEventListener('input', function(){
+    detectarTipo(); marcarBorrar(); vigilarRefinamiento();
+  });
+  $('rRfc').addEventListener('input', function(){
+    // El RFC queda vinculado a la consulta con la que se capturó
+    RFC_VINCULADO = $('q').value.trim();
+    pintarRefinamiento();
+  });
+  $('btnBorrar').addEventListener('click', limpiar);
+  $('btnQuitarRfc').addEventListener('click', function(){
+    $('rRfc').value = ''; RFC_VINCULADO = ''; pintarRefinamiento();
+  });
+
+  document.querySelectorAll('.nav-b').forEach(function(b){
+    b.addEventListener('click', function(){ irA(this.dataset.vista, this); });
+  });
+
+  var a = $('btnAlta');
+  if (a) a.addEventListener('click', altaUsuario);
+
+  var rp = $('btnReporte');
+  if (rp) rp.addEventListener('click', enviarReporte);
+
+  var bf = $('btnFiltrar');
+  if (bf) bf.addEventListener('click', function(){
+    document.querySelectorAll('.fr-b').forEach(function(b){ b.classList.remove('viva'); });
+    consultarBitacora();
+  });
+  var bl = $('btnLimpiarF');
+  if (bl) bl.addEventListener('click', function(){
+    $('fAccion').value = ''; $('fTexto').value = '';
+    dibujarOpciones($('fAccion'));
+    aplicarRango(1); consultarBitacora();
+  });
+  var br = $('btnRefrescarB');
+  if (br) br.addEventListener('click', function(){
+    br.classList.add('girando');
+    setTimeout(function(){ br.classList.remove('girando'); }, 700);
+    consultarBitacora();
+  });
+  var sr = $('btnRefrescarS');
+  if (sr) sr.addEventListener('click', function(){
+    sr.classList.add('girando');
+    setTimeout(function(){ sr.classList.remove('girando'); }, 700);
+    cargarSesiones();
+  });
+
+  var rg = $('rangos');
+  if (rg) rg.addEventListener('click', function(e){
+    var b = e.target.closest('.fr-b');
+    if (!b) return;
+    aplicarRango(parseInt(b.dataset.dias, 10));
+    consultarBitacora();
+  });
+  var ft = $('fTexto');
+  if (ft) ft.addEventListener('keydown', function(e){ if (e.key === 'Enter') consultarBitacora(); });
+
+  $('btnReiniciar').addEventListener('click', reiniciarAplicacion);
+
+  mejorarSelects();
+  iniciarVigilanciaSesion();
+});
+
+/**
+ * Reinicia la aplicación desde cero.
+ *
+ * No usa location.reload(): dentro del marco anidado de Apps Script eso
+ * recarga el recinto aislado en lugar de la aplicación, y deja la pantalla en
+ * blanco. Hay que llevar el marco superior a la URL pública de la app, que el
+ * servidor inyecta al cargar la página.
+ */
+function reiniciarAplicacion(){
+  try {
+    if (APP_URL) { window.top.location.href = APP_URL; return; }
+  } catch (e) { /* si el marco superior es inaccesible, se intenta lo demás */ }
+
+  try { window.top.location.reload(); return; } catch (e) {}
+  location.reload();
+}
+
+/* ==========================================================================
+   LISTAS DESPLEGABLES
+   --------------------------------------------------------------------------
+   El menú nativo de <select> lo dibuja el sistema operativo, no la página: no
+   admite estilos y desentona con el resto de la interfaz.
+
+   La solución es de mejora progresiva: el <select> original se conserva,
+   oculto, y sigue siendo la fuente del valor. Encima se dibuja un control
+   propio que lo refleja. Así todo el código que lee $('uRol').value sigue
+   funcionando igual, y si algo fallara en el componente el campo original
+   permanece utilizable.
+   ========================================================================== */
+
+/** Convierte todos los <select> de la página en listas con estilo propio. */
+function mejorarSelects(){
+  Array.prototype.forEach.call(document.querySelectorAll('select'), function(sel){
+    if (sel.dataset.mejorado) return;
+    sel.dataset.mejorado = '1';
+
+    var caja = document.createElement('div');
+    caja.className = 'sel';
+    sel.parentNode.insertBefore(caja, sel);
+    caja.appendChild(sel);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sel-btn';
+    btn.innerHTML = '<span class="sel-txt"></span>' +
+      '<svg class="sel-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+    caja.appendChild(btn);
+
+    var menu = document.createElement('div');
+    menu.className = 'sel-menu';
+    caja.appendChild(menu);
+
+    sel.__caja = caja; sel.__btn = btn; sel.__menu = menu;
+    dibujarOpciones(sel);
+
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var abierto = caja.classList.contains('abierto');
+      cerrarSelects();
+      if (!abierto){
+        caja.classList.add('abierto');
+        var act = menu.querySelector('.sel-op.viva');
+        if (act) act.scrollIntoView({ block: 'nearest' });
+      }
+    });
+
+    btn.addEventListener('keydown', function(e){
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        var ops = sel.options, i = sel.selectedIndex;
+        i = e.key === 'ArrowDown' ? Math.min(ops.length - 1, i + 1) : Math.max(0, i - 1);
+        fijarSelect(sel, ops[i].value);
+      } else if (e.key === 'Escape'){
+        cerrarSelects();
+      }
+    });
+  });
+}
+
+/** Redibuja las opciones. Se invoca cuando se agregan por código. */
+function dibujarOpciones(sel){
+  if (!sel.__menu) return;
+  var menu = sel.__menu;
+  menu.innerHTML = '';
+  Array.prototype.forEach.call(sel.options, function(op){
+    var it = document.createElement('button');
+    it.type = 'button';
+    it.className = 'sel-op' + (op.selected ? ' viva' : '');
+    it.innerHTML = '<span>' + esc(op.textContent) + '</span>' +
+      '<svg class="sel-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+    it.addEventListener('click', function(e){
+      e.stopPropagation();
+      fijarSelect(sel, op.value);
+      cerrarSelects();
+    });
+    menu.appendChild(it);
+  });
+  sel.__btn.querySelector('.sel-txt').textContent =
+    sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '';
+}
+
+/** Fija el valor y notifica, para que cualquier escucha existente se entere. */
+function fijarSelect(sel, valor){
+  sel.value = valor;
+  dibujarOpciones(sel);
+  sel.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function cerrarSelects(){
+  document.querySelectorAll('.sel.abierto').forEach(function(c){ c.classList.remove('abierto'); });
+}
+
+document.addEventListener('click', cerrarSelects);
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') cerrarSelects(); });
+
+/* ---------- Sesión ---------- */
+function iniciarVigilanciaSesion(){
+  ['mousedown','keydown','touchstart','scroll'].forEach(function(ev){
+    document.addEventListener(ev, function(){
+      ULTIMA_ACTIVIDAD = new Date().getTime();
+    }, { passive: true });
+  });
+
+  // Cada 45 s: si el usuario lleva más del plazo sin tocar nada, se cierra en
+  // el navegador sin esperar al servidor. Si sí hubo actividad, se consulta al
+  // servidor por si un administrador ordenó el cierre.
+  LATIDO = setInterval(function(){
+    var inactivoMin = (new Date().getTime() - ULTIMA_ACTIVIDAD) / 60000;
+
+    if (inactivoMin >= MINUTOS_INACTIVIDAD) {
+      cerrarPorInactividad('Su sesión se cerró tras ' + MINUTOS_INACTIVIDAD +
+        ' minutos sin actividad. Los resultados en pantalla fueron retirados.');
+      google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){})
+        .apiCerrarMiSesion();
+      return;
+    }
+
+    // Se informa al servidor si hubo actividad desde el latido anterior. Sin
+    // ese dato, el servidor no puede distinguir a alguien leyendo resultados
+    // de una pestaña olvidada, y vencía la sesión de quien estaba trabajando.
+    var activo = ULTIMA_ACTIVIDAD > ULTIMO_LATIDO;
+    ULTIMO_LATIDO = new Date().getTime();
+
+    google.script.run
+      .withSuccessHandler(function(r){
+        if (r && !r.vigente) cerrarPorInactividad(r.motivo);
+      })
+      .withFailureHandler(function(){})
+      .apiLatidoSesion(activo);
+  }, 45000);
+}
+
+/** Cubre la pantalla y borra todo lo que estuviera a la vista. */
+function cerrarPorInactividad(motivo){
+  clearInterval(LATIDO);
+  clearInterval(RELOJ);
+  ULTIMO = null;
+  var sal = $('salida'); if (sal) sal.innerHTML = '';
+  var q = $('q'); if (q) q.value = '';
+  var rfc = $('rRfc'); if (rfc) rfc.value = '';
+  var tb = $('tblB'); if (tb) tb.innerHTML = '';
+  var tu = $('tblU'); if (tu) tu.innerHTML = '';
+  var ts = $('tblS'); if (ts) ts.innerHTML = '';
+  $('vencidaTxt').textContent = motivo || 'Su sesión terminó.';
+  $('vencida').classList.add('vivo');
+}
+
+function arrancar(s){
+  SESION = s;
+  var u = s.usuario || {}, v = s.vigencia || {};
+  var per = u.permisos || {};
+
+  $('spNom').textContent = u.nombre || '';
+  $('spRol').textContent = (u.rol || '') + (u.area ? ' · ' + u.area : '');
+  $('avatar').textContent = iniciales(u.nombre);
+  $('ruNom').textContent = u.nombre || '—';
+  $('ruRol').textContent = u.rol || '';
+
+  // Identificador de sesión visible en la cinta: no es un dato secreto, sirve
+  // para que el usuario pueda citarlo si reporta una incidencia.
+  var ci = $('cintaId');
+  if (ci) ci.textContent = 'Terminal ' + iniciales(u.nombre) + '-' + (u.rol || '').substring(0, 3);
+
+  $('foco').className = 'foco ' + (v.semaforo || 'verde');
+  $('cabFoco').className = 'cab-foco ' + (v.semaforo || 'verde');
+  $('cabFecha').textContent = fechaMx(v.fechaCorte);
+  // No se publica el tamaño de la lista: es información sobre el contenido
+  // de un listado confidencial y no le sirve al analista.
+  $('vigTxt').innerHTML = 'Lista actualizada al<b>' + fechaMx(v.fechaCorte) + '</b>';
+  if (v.aviso) $('vigencia').title = v.aviso;
+
+  // La navegación se arma según el rol. El control real vive en el servidor;
+  // esto solo evita ofrecer puertas cerradas.
+  if (per.usuarios){ $('navUsuarios').style.display=''; $('etAdmin').style.display=''; }
+  if (per.bitacora){ $('navBitacora').style.display=''; $('etAdmin').style.display=''; }
+  if (per.usuarios){ $('navSesiones').style.display=''; }
+
+  // La espera se cuenta DESDE QUE LLEGAN LOS DATOS, no desde que abrió la
+  // página. Midiéndola desde el inicio, un servidor rápido dejaba el nombre en
+  // pantalla apenas unos milisegundos: se pintaba y se cerraba de inmediato.
+  // Con 900 ms el saludo siempre alcanza a leerse, responda como responda.
+  setTimeout(function(){
+    cerrarSplash();
+    setTimeout(function(){ $('q').focus(); }, 280);
+    calentarIndice();
+
+    // El dispositivo solo lo conoce el navegador: Apps Script no expone el
+    // agente de usuario del lado del servidor.
+    google.script.run
+      .withSuccessHandler(function(){}).withFailureHandler(function(){})
+      .apiRegistrarDispositivo(navigator.userAgent || '');
+  }, 900);
+}
+
+/**
+ * Precalienta el índice en segundo plano.
+ *
+ * La primera búsqueda del día carga los 10,010 registros desde la hoja, y eso
+ * son un par de segundos que el analista percibe como lentitud del buscador.
+ * Al pedirlo mientras lee la pantalla, la caché queda lista y su primera
+ * consulta sale tan rápida como las siguientes. Si falla no pasa nada: la
+ * búsqueda cargaría el índice igual, solo que sin la ventaja.
+ */
+function calentarIndice(){
+  google.script.run
+    .withSuccessHandler(function(){})
+    .withFailureHandler(function(){})
+    .apiCalentarIndice();
+}
+
+function irA(v, btn){
+  document.querySelectorAll('.vista').forEach(function(x){ x.classList.remove('viva'); });
+  document.querySelectorAll('.nav-b').forEach(function(x){ x.classList.remove('viva'); });
+  $('v' + v).classList.add('viva');
+  btn.classList.add('viva');
+  if (v === 'Usuarios') cargarUsuarios();
+  if (v === 'Sesiones') cargarSesiones();
+  if (v === 'Bitacora') cargarBitacora();
+}
+
+/** Indica en vivo qué tipo de dato reconoció el sistema. */
+function detectarTipo(){
+  var t = $('q').value.trim().toUpperCase().replace(/[^A-ZÑ0-9]/g,'');
+  var chip = $('tipoChip'), tipo = 'Nombre', act = true;
+  if (!t) { tipo = 'Sin capturar'; act = false; }
+  else if (/^[A-ZÑ]{4}\d{6}[HM][A-Z]{2}[A-ZÑ]{3}[A-Z0-9]\d$/.test(t)) tipo = 'CURP';
+  else if (/^[A-ZÑ&]{3,4}\d{6}([A-Z0-9]{3})?$/.test(t)) tipo = 'RFC';
+  chip.textContent = tipo;
+  chip.className = 'tipo-chip' + (act ? ' act' : '');
+}
+
+/* ---------- Búsqueda ---------- */
+function buscar(ampliada){
+  var texto = $('q').value.trim();
+  if (texto.length < 3){
+    $('salida').innerHTML = errorHtml('Escriba al menos 3 caracteres. Una consulta más corta no arroja resultados útiles.');
+    return;
+  }
+  // Al buscar, el RFC queda vinculado a este texto: si después cambia, se retira.
+  if ($('rRfc').value.trim()) RFC_VINCULADO = texto;
+
+  $('btnBuscar').disabled = true;
+  $('salida').innerHTML =
+    '<div class="cargando"><svg class="aro" viewBox="0 0 34 34">' +
+    '<circle class="p" cx="17" cy="17" r="14"/><circle class="a" cx="17" cy="17" r="14"/></svg>' +
+    '<div class="cargando-t" id="msgCarga">Normalizando la consulta</div></div>';
+
+  var pasos = ['Normalizando la consulta','Comparando coincidencias',
+               'Evaluando similitud fonética','Ordenando por nivel'];
+  var i = 0;
+  RELOJ = setInterval(function(){
+    i++;
+    var el = $('msgCarga');
+    if (el && i < pasos.length) el.textContent = pasos[i];
+  }, 850);
+
+  google.script.run
+    .withSuccessHandler(function(r){
+      clearInterval(RELOJ); $('btnBuscar').disabled = false;
+      try { pintar(r); }
+      catch(err){ $('salida').innerHTML = errorHtml('Error al mostrar los resultados: ' + err.message); }
+    })
+    .withFailureHandler(function(e){
+      clearInterval(RELOJ); $('btnBuscar').disabled = false;
+      $('salida').innerHTML = errorHtml(e.message);
+    })
+    .apiBuscar({ texto: texto, rfc: $('rRfc').value.trim(), ampliada: !!ampliada });
+}
+
+function colorNivel(n){
+  return { CONFIRMADA:'#9E1B12', PROBABLE:'#B54F1C', POSIBLE:'#B8850C',
+           'REVISIÓN':'#6B7078', AMPLIADA:'#AFB4BC' }[n] || '#AFB4BC';
+}
+function claseNivel(n){ return String(n).replace('Ó','O'); }
+
+/** Muestra la equis de borrado solo cuando hay algo escrito. */
+function marcarBorrar(){
+  $('btnBorrar').classList.toggle('hay', $('q').value.length > 0);
+}
+
+/**
+ * Invalida el RFC cuando la consulta cambia respecto a la que lo motivó.
+ * El aviso es visible a propósito: borrar un dato en silencio es tan malo
+ * como arrastrarlo sin que nadie se entere.
+ */
+function vigilarRefinamiento(){
+  var rfc = $('rRfc').value.trim();
+  if (!rfc) { pintarRefinamiento(); return; }
+
+  if ($('q').value.trim() !== RFC_VINCULADO) {
+    $('rRfc').value = '';
+    RFC_VINCULADO = '';
+    var av = $('refAviso');
+    av.textContent = 'Se retiró el RFC porque cambió la consulta. Vuelva a capturarlo si aplica.';
+    av.classList.add('vivo');
+    clearTimeout(vigilarRefinamiento.t);
+    vigilarRefinamiento.t = setTimeout(function(){ av.classList.remove('vivo'); }, 6000);
+  }
+  pintarRefinamiento();
+}
+
+/** Marca visualmente que hay un refinamiento activo. */
+function pintarRefinamiento(){
+  var hay = $('rRfc').value.trim().length > 0;
+  $('refinar').classList.toggle('activo', hay);
+  $('btnQuitarRfc').style.display = hay ? 'inline-flex' : 'none';
+}
+
+function limpiar(){
+  $('q').value = ''; $('rRfc').value = ''; RFC_VINCULADO = '';
+  $('salida').innerHTML = '';
+  $('refAviso').classList.remove('vivo');
+  ULTIMO = null; detectarTipo(); marcarBorrar(); pintarRefinamiento(); $('q').focus();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function pintar(r){
+  ULTIMO = r;
+
+  if (!r.resultados || !r.resultados.length){
+    $('salida').innerHTML =
+      '<div class="vacio">' +
+        '<svg class="vacio-i" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">' + ICO.vacio + '</svg>' +
+        '<div class="vacio-t">Sin coincidencias</div>' +
+        '<p class="vacio-p">No se encontraron coincidencias para <strong>' + esc(r.consulta) +
+          '</strong> en la Lista de Personas Bloqueadas actualizada al <strong>' + fechaMx(r.fechaCorte) + '</strong>.</p>' +
+        '<div class="acciones">' +
+          (!r.ampliada ? '<button class="btn btn-borde" onclick="buscar(true)">' + svg('mas') + 'Ampliar búsqueda</button>' : '') +
+          '<button class="btn btn-borde" onclick="limpiar()">' + svg('limpiar') + 'Nueva consulta</button></div>' +
+        '<p class="vacio-l">Este resultado no constituye dictamen ni certifica que la persona no se ' +
+          'encuentre bloqueada. Refleja el contenido de la lista a la fecha indicada.</p>' +
+      '</div>';
+    return;
+  }
+
+  // Desglose por nivel: el analista ve la gravedad del conjunto antes de
+  // leer registro por registro.
+  var cta = {};
+  r.resultados.forEach(function(x){ cta[x.nivel] = (cta[x.nivel]||0) + 1; });
+  var desglose = ['CONFIRMADA','PROBABLE','POSIBLE','REVISIÓN','AMPLIADA']
+    .filter(function(n){ return cta[n]; })
+    .map(function(n){
+      return '<span class="br-lv"><span class="br-pt" style="background:' + colorNivel(n) + '"></span>' +
+             '<span class="br-nc">' + cta[n] + '</span><span class="br-nn">' + n + '</span></span>';
+    }).join('');
+
+  var h =
+    '<div class="barra">' +
+      '<div class="br-c"><span class="br-n">' + r.total + '</span>' +
+        '<span class="br-e">Coincidencia' + (r.total===1?'':'s') + ' en lista<b>' + esc(r.consulta) + '</b></span></div>' +
+      '<div class="br-d">' + desglose +
+        (r.rfcAplicado ? '<span class="br-rfc">' + svg('cedula') + 'RFC ' + esc(r.rfcAplicado) + '</span>' : '') +
+      '</div>' +
+      '<div class="br-a">' +
+        (r.ampliada ? '' : '<button class="br-b" onclick="buscar(true)">' + svg('mas') + 'Ampliar</button>') +
+        '<button class="br-b" data-acc="pdf" onclick="exportar()">' + svg('pdf') + 'Descargar PDF</button>' +
+        '<button class="br-b" onclick="limpiar()">' + svg('limpiar') + 'Nueva</button>' +
+      '</div>' +
+    '</div>';
+
+  r.resultados.forEach(function(x,i){ h += tarjeta(x,i); });
+  $('salida').innerHTML = h;
+}
+
+function icoNivel(n){
+  if (n === 'CONFIRMADA') return 'candado';
+  if (n === 'PROBABLE')   return 'escudo';
+  if (n === 'POSIBLE')    return 'alerta';
+  return 'info';
+}
+
+/**
+ * Celda del cuadro de identificación. Cuando el dato falta se explica POR QUÉ:
+ * no es lo mismo un descuido de captura que un registro que legítimamente
+ * carece de RFC, como ocurre con extranjeros.
+ */
+function celda(ico, k, v, ausencia, mono){
+  return '<div class="cel"><div class="cel-k">' + svg(ico) + k + '</div>' +
+    (v ? '<div class="cel-v' + (mono?' mono':'') + '">' + esc(v) + '</div>'
+       : '<div class="cel-x">' + esc(ausencia) + '</div>') + '</div>';
+}
+
+// El anillo de puntaje numérico se retiró a propósito: el mismo número
+// podía salir por razones completamente distintas (coincidencia de CURP, de
+// RFC, de contención de un fragmento, de simple parecido de letras), y sin
+// ese contexto confundía más de lo que ayudaba. La etiqueta de NIVEL
+// (CONFIRMADA / PROBABLE / POSIBLE / REVISIÓN / AMPLIADA) ya comunica lo que
+// el analista necesita saber, y existe precisamente para resolver esa
+// ambigüedad. El puntaje interno se sigue calculando y queda en bitácora;
+// solo deja de mostrarse en pantalla.
+
+/**
+ * Cotejo lado a lado entre el dato del cliente y el del registro.
+ *
+ * Resalta carácter por carácter las posiciones que difieren. Comparar a ojo
+ * dos RFC de trece caracteres es donde se cuela el error humano, sobre todo
+ * en la homoclave: son los tres últimos y los que más se parecen entre
+ * personas distintas.
+ */
+function cotejo(filas){
+  if (!filas || !filas.length) return '';
+
+  return '<div class="cotejo">' +
+    '<div class="cot-t">' + svg('balanza') + 'Cotejo con el dato capturado</div>' +
+    filas.map(function(f){
+      function pintar(txt, otro){
+        var out = '';
+        for (var k = 0; k < txt.length; k++){
+          var dif = f.difiere.indexOf(k) !== -1;
+          out += dif ? '<b class="dif">' + esc(txt.charAt(k)) + '</b>' : esc(txt.charAt(k));
+        }
+        return out;
+      }
+      return '<div class="cot-f' + (f.iguales ? ' igual' : '') + '">' +
+        '<div class="cot-k">' + esc(f.campo) + '</div>' +
+        '<div class="cot-par">' +
+          '<div class="cot-lado"><span>Cliente</span><code>' + pintar(f.cliente) + '</code></div>' +
+          '<div class="cot-vs">' + svg(f.iguales ? 'check' : 'alerta') + '</div>' +
+          '<div class="cot-lado"><span>Registro</span><code>' + pintar(f.registro) + '</code></div>' +
+        '</div>' +
+        (f.nota ? '<div class="cot-n">' + esc(f.nota) + '</div>' : '') +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+function tarjeta(x, i){
+  var d = x.datos || {};
+  var cn = claseNivel(x.nivel);
+
+  var chips = '';
+  if (x.soloNombre)      chips += '<span class="chip">' + svg('alerta') + 'Sin identificador</span>';
+  if (x.identidades > 1) chips += '<span class="chip">' + svg('usuarios') + x.identidades + ' identidades</span>';
+
+  // El estatus manda: un registro eliminado y uno suspendido son respuestas
+  // opuestas y deben distinguirse antes de leer cualquier otra cosa.
+  //
+  // Cuando la celda viene vacía —el 82% de la lista— no se muestra nada. Antes
+  // aparecía "Estatus no registrado en la lista", que ocupaba el lugar más
+  // visible de la tarjeta para no decir nada y competía con el estatus real de
+  // los registros que sí lo tienen.
+  var eCls = d.eliminado ? ' libre' : '';
+  var eIco = d.eliminado ? 'check' : 'candado';
+  var faltaRFC = d.soloFecha
+    ? 'Sin RFC · el registro aporta fecha: ' + (d.fechaNacimiento || '—')
+    : 'No capturado en la lista';
+
+  return '' +
+  '<article class="reg ' + cn + '" style="animation-delay:' + (i*.05) + 's">' +
+
+    // Franja superior: nivel a la izquierda, folio a la derecha
+    '<div class="reg-franja">' +
+      '<span class="sello">' + svg(icoNivel(x.nivel)) + esc(x.nivel) + '</span>' +
+      chips +
+      '<span class="reg-i">Registro ' + ('0'+(i+1)).slice(-2) + '</span>' +
+    '</div>' +
+
+    '<div class="reg-c">' +
+      '<div class="reg-encabezado">' +
+        '<div class="reg-id">' +
+          '<h3 class="reg-nom">' + esc(d.nombre) + '</h3>' +
+          (d.estatus ? '<span class="estatus' + eCls + '">' + svg(eIco) + esc(d.estatus) + '</span>' : '') +
+        '</div>' +
+      '</div>' +
+
+      '<div class="dict">' + svg('brujula') + '<span>' + esc(x.nivelTexto) + '</span></div>' +
+      cotejo(x.cotejo) +
+
+      // El CURP solo se muestra si el registro lo tiene. Se captura en apenas
+      // el 2% de los casos, así que una celda vacía en cada resultado ocupaba
+      // un tercio del cuadro para no decir nada.
+      '<div class="cuadro">' +
+        celda('calendario','Fecha nac. / const.', d.fechaNacimiento, 'No capturada en la lista') +
+        celda('cedula','RFC',  d.rfc,  faltaRFC, true) +
+        (d.curp ? celda('huella','CURP', d.curp, '', true) : '') +
+      '</div>' +
+
+      '<div class="reg-p"><button class="det-b" id="bd' + i + '" onclick="verDetalle(' + i + ')">' +
+        svg('flecha') + 'Detalle de la coincidencia</button></div>' +
+      '<div class="detalle" id="dt' + i + '">' +
+        '<div class="det-t">Cómo se determinó la coincidencia</div>' +
+        '<div class="det-c">' + esc(x.explicacion) + '</div>' +
+      '</div>' +
+    '</div>' +
+  '</article>';
+}
+
+function verDetalle(i){
+  $('dt'+i).classList.toggle('ab');
+  $('bd'+i).classList.toggle('ab');
+}
+
+/* ---------- Evidencia ---------- */
+function exportar(){
+  if (!ULTIMO) return;
+  var b = document.querySelector('.br-b[data-acc="pdf"]');
+  if (b) { b.disabled = true; b.style.opacity = '.5'; }
+
+  google.script.run
+    .withSuccessHandler(function(ev){
+      if (b) { b.disabled = false; b.style.opacity = ''; }
+      // El PDF llega en base64 desde el servidor. Se reconstruye como blob y
+      // se dispara la descarga: así el documento sale idéntico para todos, sin
+      // depender de la configuración de impresión de cada equipo.
+      try {
+        var bin = atob(ev.base64);
+        var bytes = new Uint8Array(bin.length);
+        for (var k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+        var url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+        var a = document.createElement('a');
+        a.href = url; a.download = ev.nombreArchivo;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      } catch (err) {
+        alert('No fue posible descargar el documento: ' + err.message);
+      }
+    })
+    .withFailureHandler(function(e){
+      if (b) { b.disabled = false; b.style.opacity = ''; }
+      alert(e.message);
+    })
+    .apiGenerarEvidencia(ULTIMO);
+}
+
+/* ---------- Reporte de anomalía ---------- */
+function enviarReporte(){
+  var btn = $('btnReporte');
+  btn.disabled = true;
+  google.script.run
+    .withSuccessHandler(function(r){
+      btn.disabled = false;
+      $('msgR').innerHTML = '<div class="error exito">' + svg('check') +
+        '<div>' + esc(r.mensaje) + '</div></div>';
+      $('rpDetalle').value = ''; $('rpConsulta').value = '';
+    })
+    .withFailureHandler(function(e){
+      btn.disabled = false;
+      $('msgR').innerHTML = errorHtml(e.message);
+    })
+    .apiReportarAnomalia({
+      tipo: $('rpTipo').value,
+      consulta: $('rpConsulta').value.trim(),
+      detalle: $('rpDetalle').value.trim()
+    });
+}
+
+/* ---------- Accesos ---------- */
+
+/** Usuarios recibidos del servidor y criterio de orden vigente. */
+var USUARIOS = [];
+var ORDEN_U = { campo: 'rol', asc: true };
+
+/** Peso de cada rol: los de mayor privilegio primero. */
+var PESO_ROL = { ADMIN: 0, AUDITOR: 1, CONSULTA: 2 };
+
+function ordenarUsuarios(campo){
+  if (ORDEN_U.campo === campo) ORDEN_U.asc = !ORDEN_U.asc;
+  else { ORDEN_U.campo = campo; ORDEN_U.asc = true; }
+  pintarUsuarios();
+}
+
+function pintarUsuarios(){
+  var signo = ORDEN_U.asc ? 1 : -1;
+  var lista = USUARIOS.slice().sort(function(a, b){
+    if (ORDEN_U.campo === 'rol'){
+      var pa = PESO_ROL[a.rol] === undefined ? 9 : PESO_ROL[a.rol];
+      var pb = PESO_ROL[b.rol] === undefined ? 9 : PESO_ROL[b.rol];
+      if (pa !== pb) return (pa - pb) * signo;
+      return a.nombre.localeCompare(b.nombre);
+    }
+    if (ORDEN_U.campo === 'estado'){
+      if (a.activo !== b.activo) return (a.activo ? -1 : 1) * signo;
+      return a.nombre.localeCompare(b.nombre);
+    }
+    return a.nombre.localeCompare(b.nombre) * signo;
+  });
+
+  // Marca visual en el encabezado de la columna ordenada
+  ['nombre','rol','estado'].forEach(function(c){
+    var th = document.querySelector('th[data-orden="' + c + '"]');
+    if (!th) return;
+    th.classList.toggle('ord', ORDEN_U.campo === c);
+    th.classList.toggle('desc', ORDEN_U.campo === c && !ORDEN_U.asc);
+  });
+
+  if (!lista.length){
+    $('tblU').innerHTML = '<tr><td colspan="6" class="vacio-tb">Sin usuarios registrados.</td></tr>';
+    return;
+  }
+
+  $('tblU').innerHTML = lista.map(function(u){
+    return '<tr class="' + (u.activo?'':'inactivo') + '">' +
+      '<td data-k="Nombre">' + esc(u.nombre) + '</td>' +
+      '<td data-k="Correo" class="mono" style="font-size:12px">' + esc(u.correo) + '</td>' +
+      '<td data-k="Área">' + esc(u.area) + '</td>' +
+      '<td data-k="Rol"><span class="rol ' + esc(u.rol) + '">' + esc(u.rol) + '</span></td>' +
+      '<td data-k="Estado"><span class="est-p ' + (u.activo?'si':'no') + '">' +
+        (u.activo?'Activo':'Dado de baja') + '</span></td>' +
+      '<td class="td-acc">' +
+        (u.activo
+          ? '<button class="btn btn-borde" onclick="desactivarU(\'' + esc(u.correo) + '\')">Desactivar</button>'
+          : '<button class="btn btn-borde" onclick="reactU(\'' + esc(u.correo) + '\')">Reactivar</button>') +
+        '<button class="btn btn-borde btn-riesgo" onclick="archivarU(\'' + esc(u.correo) + '\',\'' +
+          esc(u.nombre) + '\')">Dar de baja</button>' +
+      '</td></tr>';
+  }).join('');
+}
+
+function cargarUsuarios(){
+  google.script.run
+    .withSuccessHandler(function(us){
+      USUARIOS = us || [];
+      pintarUsuarios();
+    })
+    .withFailureHandler(function(e){
+      $('tblU').innerHTML = '<tr><td colspan="6" class="vacio-tb">' + esc(e.message) + '</td></tr>';
+    })
+    .apiListarUsuarios();
+}
+
+function altaUsuario(){
+  google.script.run
+    .withSuccessHandler(function(r){
+      $('msgU').innerHTML = '<div class="error exito">' + svg('check') + '<div>' + esc(r.mensaje) + '</div></div>';
+      if (r.mensaje.indexOf('reincorporado') !== -1) alert(r.mensaje);
+      ['uCorreo','uNombre','uArea','uJust'].forEach(function(i){ $(i).value=''; });
+      $('uRol').value = 'CONSULTA'; dibujarOpciones($('uRol'));
+      cargarUsuarios();
+    })
+    .withFailureHandler(function(e){ $('msgU').innerHTML = errorHtml(e.message); })
+    .apiAltaUsuario({ correo:$('uCorreo').value.trim(), nombre:$('uNombre').value.trim(),
+                      area:$('uArea').value.trim(), rol:$('uRol').value,
+                      justificacion:$('uJust').value.trim() });
+}
+
+/** Suspensión temporal: el registro permanece en la tabla. */
+function desactivarU(c){
+  var m = prompt('Desactivar el acceso de ' + c + '\n\n' +
+    'El registro permanece en la tabla y podrá reactivarse.\n' +
+    'Motivo (obligatorio, queda en bitácora):');
+  if (!m) return;
+  google.script.run.withSuccessHandler(function(r){ cargarUsuarios(); })
+    .withFailureHandler(function(e){ alert(e.message); }).apiBajaUsuario(c, m);
+}
+
+/** Salida definitiva: el registro se archiva y sale de la tabla. */
+function archivarU(c, nombre){
+  if (!confirm('DAR DE BAJA A ' + nombre + '\n\n' +
+      'El registro saldrá de la tabla de accesos. Su historial se conserva ' +
+      'para auditoría, pero para volver a otorgarle acceso habrá que darlo de ' +
+      'alta de nuevo.\n\n' +
+      'Para una suspensión temporal use Desactivar.\n\n¿Continuar?')) return;
+
+  var m = prompt('Motivo de la baja definitiva de ' + nombre + ':\n(obligatorio, queda en bitácora)');
+  if (!m) return;
+  google.script.run
+    .withSuccessHandler(function(r){ alert(r.mensaje); cargarUsuarios(); })
+    .withFailureHandler(function(e){ alert(e.message); })
+    .apiArchivarUsuario(c, m);
+}
+function reactU(c){
+  var m = prompt('Reactivar el acceso de ' + c + '\n\n' +
+    'Motivo (obligatorio, queda en bitácora):');
+  if (!m) return;
+  google.script.run.withSuccessHandler(cargarUsuarios)
+    .withFailureHandler(function(e){ alert(e.message); }).apiReactivarUsuario(c, m);
+}
+
+/* ---------- Sesiones ---------- */
+function cargarSesiones(){
+  $('tblS').innerHTML = '<tr><td colspan="8" class="vacio-tb">Cargando…</td></tr>';
+  google.script.run
+    .withSuccessHandler(function(ss){
+      if (!ss || !ss.length){
+        $('tblS').innerHTML = '<tr><td colspan="8" class="vacio-tb">No hay sesiones abiertas.</td></tr>';
+        return;
+      }
+      $('tblS').innerHTML = ss.map(function(x){
+        return '<tr>' +
+          '<td data-k="Usuario"><b>' + esc(x.nombre) + '</b><div style="color:var(--g400);font-size:11.5px">' +
+            esc(x.correo) + '</div></td>' +
+          '<td data-k="Área">' + esc(x.area) + '</td>' +
+          '<td data-k="Rol"><span class="rol ' + esc(x.rol) + '">' + esc(x.rol) + '</span></td>' +
+          '<td data-k="Dispositivo" class="td-disp">' + (esc(x.disp) || '—') + '</td>' +
+          '<td data-k="Inicio" class="mono" style="font-size:11.5px">' + esc(x.inicio) + '</td>' +
+          '<td data-k="Inactivo" class="td-n">' + x.inactivoMin + ' min</td>' +
+          '<td data-k="Vence en" class="td-n">' + x.restanteMin + ' min</td>' +
+          '<td class="td-acc"><button class="btn btn-borde" onclick="cerrarRemota(\'' +
+            esc(x.correo) + '\')">Cerrar sesión</button></td>' +
+        '</tr>';
+      }).join('');
+    })
+    .withFailureHandler(function(e){
+      $('tblS').innerHTML = '<tr><td colspan="8" class="vacio-tb">' + esc(e.message) + '</td></tr>';
+    })
+    .apiListarSesiones();
+}
+
+function cerrarRemota(correo){
+  var m = prompt('Motivo del cierre de sesión de ' + correo + ':\n(obligatorio, queda en bitácora)');
+  if (!m) return;
+  google.script.run
+    .withSuccessHandler(function(r){ alert(r.mensaje); cargarSesiones(); })
+    .withFailureHandler(function(e){ alert(e.message); })
+    .apiCerrarSesionRemota(correo, m);
+}
+
+/* ---------- Bitácora ---------- */
+
+/** Fecha de hoy en formato ISO, para los campos de rango. */
+function hoyISO(d){
+  var f = d || new Date();
+  return f.getFullYear() + '-' + ('0'+(f.getMonth()+1)).slice(-2) + '-' + ('0'+f.getDate()).slice(-2);
+}
+
+function cargarBitacora(){
+  // Arranca en el día en curso. Con miles de registros acumulados, abrir la
+  // pantalla con todo el histórico no le sirve a nadie: lo que se revisa a
+  // diario es la actividad reciente.
+  if (!$('fDesde').value && !$('fHasta').value) aplicarRango(1);
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      res = res || {};
+      $('fichas').innerHTML =
+        ficha(res.total, 'Movimientos<br>últimos ' + (res.dias||30) + ' días', res.total>0) +
+        ficha(res.confirmadas, 'Coincidencias<br>confirmadas', res.confirmadas>0) +
+        ficha(res.accesosDenegados, 'Accesos<br>denegados', res.accesosDenegados>0) +
+        ficha(Object.keys(res.porUsuario||{}).length, 'Usuarios<br>con actividad', true);
+    })
+    .withFailureHandler(function(e){ $('fichas').innerHTML = errorHtml(e.message); })
+    .apiResumenActividad(30);
+
+  // El selector de acciones se puebla con lo que realmente existe en la
+  // bitácora, para no ofrecer filtros que no devuelven nada.
+  if ($('fAccion').options.length <= 1) {
+    google.script.run
+      .withSuccessHandler(function(acc){
+        (acc||[]).forEach(function(a){
+          var o = document.createElement('option');
+          o.value = a; o.textContent = a.replace(/_/g,' ');
+          $('fAccion').appendChild(o);
+        });
+        dibujarOpciones($('fAccion'));
+      })
+      .withFailureHandler(function(){})
+      .apiAccionesBitacora();
+  }
+
+  consultarBitacora();
+}
+
+/** Ajusta las fechas a un rango rápido. dias = 0 significa sin límite. */
+function aplicarRango(dias){
+  document.querySelectorAll('.fr-b').forEach(function(b){
+    b.classList.toggle('viva', parseInt(b.dataset.dias,10) === dias);
+  });
+  if (dias === 0){ $('fDesde').value = ''; $('fHasta').value = ''; return; }
+  var hasta = new Date();
+  var desde = new Date(hasta.getTime() - (dias - 1) * 86400000);
+  $('fDesde').value = hoyISO(desde);
+  $('fHasta').value = hoyISO(hasta);
+}
+
+function consultarBitacora(){
+  $('tblB').innerHTML = '<tr><td colspan="6" class="vacio-tb">Consultando…</td></tr>';
+  $('conteoB').textContent = '';
+
+  google.script.run
+    .withSuccessHandler(function(regs){
+      regs = regs || [];
+      $('conteoB').textContent = regs.length
+        ? regs.length + (regs.length === 500 ? '+ registros' : ' registro' + (regs.length===1?'':'s'))
+        : '';
+
+      if (!regs.length){
+        $('tblB').innerHTML =
+          '<tr><td colspan="6" class="vacio-tb">Sin movimientos para los filtros aplicados.</td></tr>';
+        return;
+      }
+      var out = '';
+      for (var i = 0; i < regs.length; i++){
+        var r = regs[i] || {};
+        var ac = String(r.accion||'');
+        var acCls = ac.indexOf('ADMIN_') === 0 ? 'ADMIN' : ac;
+        var nv = String(r.nivelMax||'');
+        out += '<tr>' +
+          '<td data-k="Fecha" class="mono" style="font-size:11.5px;white-space:nowrap">' + esc(r.fecha) + '</td>' +
+          '<td data-k="Usuario">' + esc(r.nombre || r.correo || '—') + '</td>' +
+          '<td data-k="Acción"><span class="acc ' + esc(acCls) + '"><span class="acc-p"></span>' +
+            esc(ac.replace('ADMIN_','')) + '</span></td>' +
+          '<td data-k="Consulta" class="td-q" title="' + esc(r.consulta) + '">' + (esc(r.consulta) || '—') + '</td>' +
+          '<td data-k="Result." class="td-n">' + (r.resultados || 0) + '</td>' +
+          '<td data-k="Nivel máx.">' + (nv ? '<span class="nv ' + esc(claseNivel(nv)) + '">' + esc(nv) + '</span>' : '—') + '</td>' +
+        '</tr>';
+      }
+      $('tblB').innerHTML = out;
+    })
+    .withFailureHandler(function(e){
+      $('tblB').innerHTML = '<tr><td colspan="6" class="vacio-tb">' + esc(e.message) + '</td></tr>';
+    })
+    .apiConsultarBitacora({
+      limite: 500,
+      desde:  $('fDesde').value || null,
+      hasta:  $('fHasta').value || null,
+      accion: $('fAccion').value || null,
+      texto:  $('fTexto').value.trim() || null
+    });
+}
+
+function ficha(n, k, viva){
+  return '<div class="ficha' + (viva?' viva':' apagada') + '">' +
+    '<div class="ficha-n">' + (n||0) + '</div><div class="ficha-k">' + k + '</div></div>';
+}
+</script>
