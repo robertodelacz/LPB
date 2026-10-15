@@ -59,13 +59,14 @@ function lpbEvaluar_(consulta, registro) {
     mejorNombre = lpbCompararNombres_(consulta.nombre, registro.nombre);
     mejorNombre.contra = 'NOMBRE_EN_LISTA';
   }
-  // Los alias del campo DATOS COMPLEMENTARIOS se puntúan igual que el nombre
-  // principal. Un alias sin indexar es una coincidencia que nunca se detecta.
+  // Los nombres alternos (identidades separadas por "y/o" en la misma celda)
+  // se puntúan igual que el nombre principal. Un nombre sin indexar es una
+  // coincidencia que nunca se detecta.
   if (consulta.nombre && registro.alias && registro.alias.length) {
     for (var i = 0; i < registro.alias.length; i++) {
       var cmp = lpbCompararNombres_(consulta.nombre, registro.alias[i]);
       if (!mejorNombre || cmp.puntaje > mejorNombre.puntaje) {
-        cmp.contra = 'ALIAS: ' + registro.alias[i];
+        cmp.contra = 'NOMBRE ALTERNO: ' + registro.alias[i];
         mejorNombre = cmp;
       }
     }
@@ -74,26 +75,51 @@ function lpbEvaluar_(consulta, registro) {
     detalle.nombre = mejorNombre;
     if (mejorNombre.puntaje > puntaje) {
       puntaje = mejorNombre.puntaje;
-      motivos.push(mejorNombre.contra.indexOf('ALIAS') === 0
-        ? 'COINCIDENCIA_POR_ALIAS' : 'COINCIDENCIA_POR_NOMBRE');
+      motivos.push(mejorNombre.contra.indexOf('NOMBRE ALTERNO') === 0
+        ? 'COINCIDENCIA_POR_NOMBRE_ALTERNO' : 'COINCIDENCIA_POR_NOMBRE');
     }
   }
 
   // --- 3. Fecha de nacimiento como desempate -------------------------------
-  // Sube o baja la banda cuando el nombre por sí solo no resuelve.
-  var fechaConsulta = consulta.fechaNac;
-  if (!fechaConsulta && consulta.curp) fechaConsulta = lpbValidarCURP_(consulta.curp).fecha;
-  if (!fechaConsulta && consulta.rfc)  fechaConsulta = lpbRfcFecha_(consulta.rfc);
+  //
+  // REGLA: la fecha solo vale como desempate cuando es EVIDENCIA
+  // INDEPENDIENTE del identificador que ya produjo la coincidencia.
+  //
+  // Los caracteres 5 a 10 del RFC y del CURP SON la fecha de nacimiento. Si
+  // la coincidencia se ganó por RFC_RAIZ_EXACTA, esos caracteres ya se
+  // compararon; volver a compararlos como "fecha" cuenta el mismo dato dos
+  // veces. Cuando el registro trae varios RFC con fechas distintas, o una
+  // fecha capturada aparte, ese doble conteo castiga una coincidencia que en
+  // realidad es exacta.
+  //
+  // Caso real que lo destapó: consulta "GAEM600607" contra fila 36 dio
+  // RFC_RAIZ_EXACTA (98) y luego -15 por FECHA_NACIMIENTO_DIFIERE, quedando
+  // en 83 REVISIÓN cuando debía ser CRÍTICA.
+  var yaCoincidioPorId = false;
+  for (var mi = 0; mi < motivos.length; mi++) {
+    if (motivos[mi].indexOf('RFC_') === 0 || motivos[mi].indexOf('CURP_') === 0) {
+      yaCoincidioPorId = true;
+      break;
+    }
+  }
 
-  var fechaRegistro = registro.fechaNac;
-  if (!fechaRegistro && registro.curp) fechaRegistro = lpbValidarCURP_(registro.curp).fecha;
-  if (!fechaRegistro && registro.rfc)  fechaRegistro = lpbRfcFecha_(registro.rfc);
+  if (yaCoincidioPorId) {
+    detalle.fecha = { estado: 'NO_APLICA_YA_COINCIDIO_POR_ID', ajuste: 0 };
+  } else {
+    var fechaConsulta = consulta.fechaNac;
+    if (!fechaConsulta && consulta.curp) fechaConsulta = lpbValidarCURP_(consulta.curp).fecha;
+    if (!fechaConsulta && consulta.rfc)  fechaConsulta = lpbRfcFecha_(consulta.rfc);
 
-  var f = lpbCompararFechas_(fechaConsulta, fechaRegistro);
-  detalle.fecha = f;
-  if (f.ajuste !== 0) {
-    puntaje = puntaje + f.ajuste;
-    motivos.push(f.ajuste > 0 ? 'FECHA_NACIMIENTO_COINCIDE' : 'FECHA_NACIMIENTO_DIFIERE');
+    var fechaRegistro = registro.fechaNac;
+    if (!fechaRegistro && registro.curp) fechaRegistro = lpbValidarCURP_(registro.curp).fecha;
+    if (!fechaRegistro && registro.rfc)  fechaRegistro = lpbRfcFecha_(registro.rfc);
+
+    var f = lpbCompararFechas_(fechaConsulta, fechaRegistro);
+    detalle.fecha = f;
+    if (f.ajuste !== 0) {
+      puntaje = puntaje + f.ajuste;
+      motivos.push(f.ajuste > 0 ? 'FECHA_NACIMIENTO_COINCIDE' : 'FECHA_NACIMIENTO_DIFIERE');
+    }
   }
 
   puntaje = Math.max(0, Math.min(100, puntaje));
@@ -165,6 +191,7 @@ function lpbTextoMotivo_(codigo) {
     'IGUAL':                  'coincide exactamente',
     'DISTINTA':               'difiere — argumento en contra de la coincidencia',
     'INVERTIDA_DIA_MES':      'día y mes invertidos — probable error de captura, se trata como neutro',
+    'NO_APLICA_YA_COINCIDIO_POR_ID': 'no se evalúa por separado — el RFC/CURP que coincidió ya contiene la fecha',
     'SIN_DATO':               'no disponible en uno de los dos lados'
   };
   return mapa[codigo] || codigo;
