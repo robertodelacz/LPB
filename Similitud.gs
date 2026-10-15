@@ -130,6 +130,36 @@ function lpbLevenshteinNorm_(a, b) {
 function lpbSimilitudToken_(a, b) {
   if (a === b) return { puntaje: 1, via: 'exacta' };
 
+  // CONTENCIÓN: un token es, literalmente, el inicio o el final del otro.
+  //
+  // CASO QUE LO DESTAPÓ: buscar "FRUT" no encontraba a "ALFRUT SA DE CV".
+  // "FRUT" es el final exacto de "ALFRUT" —no un error de captura, es el
+  // mismo fragmento de palabra— pero Jaro-Winkler solo da 88.9% entre ambos,
+  // bajo el 90% exigido tras la corrección anterior (la que resolvió
+  // PERLA/PEÑA y GARCIA/ARCA). Buscar una raíz o fragmento de una razón
+  // social es un patrón de búsqueda normal y legítimo en personas morales:
+  // "ALFRUT", "DISTRICARNES" o "COMERCIALIZADORA RIVAS" se arman como
+  // PREFIJO+RAÍZ o RAÍZ+SUFIJO, y el analista a menudo solo conoce o recuerda
+  // el fragmento distintivo, no el nombre completo.
+  //
+  // Se restringe a PREFIJO o SUFIJO —no a cualquier posición— para no
+  // premiar coincidencias de en medio de la palabra: "JUAN" aparece dentro
+  // de "AJUANADO" por azar, sin relación real entre ambos nombres. Con la
+  // restricción a inicio/final, ese caso queda en 0, como debe ser.
+  //
+  // RUIDO ACEPTADO Y DOCUMENTADO: nombres comunes de 4 letras que sí son
+  // prefijo o sufijo real de otro nombre distinto —"ROSA" dentro de
+  // "AMBROSA", "LUIS" dentro de "LUISBER"— sí activan esta regla y entran
+  // como candidato POSIBLE (puntaje 81.7), aunque no sean la misma persona.
+  // Es ruido adicional, no un riesgo de seguridad: el analista descarta con
+  // el RFC o CURP, igual que con cualquier otro candidato. Se midió contra
+  // los 60 casos de calibración sin ninguna detección perdida.
+  var corto = a.length <= b.length ? a : b;
+  var largo = a.length <= b.length ? b : a;
+  var esPrefijo = largo.indexOf(corto) === 0;
+  var esSufijo  = largo.lastIndexOf(corto) === largo.length - corto.length;
+  var esContencion = corto.length >= 4 && (esPrefijo || esSufijo);
+
   var porLetra = lpbJaroWinkler_(a, b);
 
   var clavesA = lpbClavesFoneticas_(a);
@@ -143,6 +173,9 @@ function lpbSimilitudToken_(a, b) {
   }
   porSonido = porSonido * LPB_PARAMS.DESCUENTO_FONETICO;
 
+  if (esContencion && 0.95 > porSonido && 0.95 > porLetra) {
+    return { puntaje: 0.95, via: 'contención' };
+  }
   if (porSonido > porLetra) {
     return { puntaje: porSonido, via: 'fonética' };
   }
@@ -214,6 +247,41 @@ function lpbEmparejarTokens_(normA, normB) {
   var sobrantesA = A.filter(function (_, i) { return !usadosA[i]; });
   var sobrantesB = B.filter(function (_, j) { return !usadosB[j]; });
   var nSobrantesLargo = (A.length >= B.length) ? sobrantesA.length : sobrantesB.length;
+
+  // TOPE AL NÚMERO DE SOBRANTES QUE SE PENALIZAN.
+  //
+  // CASO QUE LO DESTAPÓ: buscar "BEYRUTI" no encontraba a "RAUL MANUEL
+  // BEYRUTI SÁNCHEZ" — el apellido coincidía al 100%, pero los otros tres
+  // tokens del registro (nombre y materno) se contaban como sobrantes sin
+  // relación con que la consulta solo traía una palabra. Puntaje: 79, un
+  // punto bajo el umbral de despliegue. El sistema ocultaba una coincidencia
+  // exacta de apellido por la forma en que se escribió la búsqueda, no por
+  // ninguna diferencia real.
+  //
+  // El defecto era sistémico, no de este caso: CUALQUIER búsqueda de un
+  // solo apellido contra un nombre completo mexicano (nombre + paterno +
+  // materno = 3 o 4 tokens) caía en el mismo problema, porque el castigo
+  // contaba TODOS los sobrantes del lado largo sin relación con cuántos
+  // tokens trajo la consulta.
+  //
+  // El tope limita cuántos sobrantes pesan en el castigo al número de
+  // tokens que trajo la consulta: nunca se penaliza por más contexto
+  // faltante del que la propia consulta podía aportar.
+  //
+  // AJUSTE SOBRE LA PRIMERA VERSIÓN: el tope inicial tenía un piso de 2,
+  // incluso para consultas de un solo token. Eso bastaba para un apellido
+  // ESCRITO IGUAL al del registro ("BEYRUTI" exacto: 100% de coincidencia
+  // por token, 86 con el tope). Pero cuando el apellido tiene un error de
+  // captura o se escribe distinto —"beiru" contra "BEYRUTI", que empareja
+  // por la vía fonética al 91.5%, no al 100%— el 14% de castigo (2
+  // sobrantes) combinado con ese 91.5% imperfecto volvía a caer bajo 80:
+  // 91.5% × 0.86 = 78.7. El propio tope de 2 seguía siendo demasiado
+  // estricto para la mitad de los casos reales, los que no son un calco
+  // exacto del nombre.
+  //
+  var tokensCortos  = Math.min(A.length, B.length);
+  var topeSobrantes = tokensCortos;
+  nSobrantesLargo   = Math.min(nSobrantesLargo, topeSobrantes);
 
   var castigo = Math.min(
     LPB_PARAMS.PENALIZA_MAX,
