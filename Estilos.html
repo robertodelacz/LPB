@@ -1,0 +1,924 @@
+<style>
+/* ==========================================================================
+   LPB · Terminal de Cumplimiento · Financiera Cualli
+   --------------------------------------------------------------------------
+   PALETA: gris y amarillo #FDB913 dominantes. Negro y blanco como contraste.
+   Sin azules — #364494 es de Hipoo, no de Cualli. Rojos y verdes solo como
+   señal semántica de bloqueo o eliminación de la lista.
+
+   LENGUAJE VISUAL: superficies flotantes de esquinas redondeadas sobre un
+   plano gris, con sombras de tres capas muy difusas. La profundidad separa
+   niveles de información; no es decoración.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --oro:#FDB913; --oro-h:#E0A200; --oro-o:#8F6800;
+  --oro-p:#FFEFC0; --oro-n:#FFF9E9; --oro-b:#F7DC96;
+
+  --g950:#0C0E12; --g900:#15171C; --g800:#252932; --g700:#333741; --g600:#4C525E;
+  --g500:#6B7280; --g400:#98A0AC; --g300:#C7CCD6;
+  --g200:#E2E6EC; --g150:#EDEFF3; --g100:#F4F5F8; --g50:#FAFBFC;
+  --blanco:#fff; --lienzo:#EFF1F5;
+
+  --rojo:#A11C12; --rojo-f:#FEF3F2; --rojo-b:#F3D3D0;
+  --verde:#15603E; --verde-f:#F0F8F4; --verde-b:#C6E5D4;
+  --nc:#A11C12; --np:#B5601C; --npo:#B8850C; --nr:#6B7280; --na:#AAB1BC;
+
+  /* Sombras de tres capas: contacto, difusión y ambiente */
+  --s1:0 1px 2px rgba(21,23,28,.04), 0 1px 3px rgba(21,23,28,.03);
+  --s2:0 1px 2px rgba(21,23,28,.04), 0 4px 10px rgba(21,23,28,.045), 0 12px 28px rgba(21,23,28,.045);
+  --s3:0 2px 4px rgba(21,23,28,.05), 0 8px 20px rgba(21,23,28,.07), 0 22px 48px rgba(21,23,28,.07);
+  --hueco:inset 0 1px 3px rgba(21,23,28,.06);
+
+  --r-xs:8px; --r-s:12px; --r-m:16px; --r-l:22px; --r-pill:999px;
+  --w:276px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+html,body{min-height:100%}
+body{font-family:'IBM Plex Sans',-apple-system,sans-serif;background:var(--lienzo);
+  color:var(--g900);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  /* Evita el rebote elástico horizontal en iOS dentro del iframe */
+  overflow-x:hidden}
+.mono{font-family:'IBM Plex Mono',monospace;font-variant-ligatures:none}
+svg{display:block}
+::selection{background:var(--oro-p)}
+::-webkit-scrollbar{width:12px;height:12px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--g300);border:4px solid var(--lienzo);border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:var(--g400)}
+
+/* ================= SPLASH ================= */
+#splash{position:fixed;inset:0;z-index:999;background:var(--g900);
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity .55s cubic-bezier(.4,0,.2,1),visibility .55s}
+#splash::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 45% at 50% 45%,rgba(253,185,19,.12),transparent 70%)}
+#splash.fuera{opacity:0;visibility:hidden}
+.sp{position:relative;text-align:center;padding:0 24px}
+/* PLACA DEL SPLASH
+   Réplica exacta de la del riel, a mayor escala. Un intento anterior le puso
+   ancho fijo de 330px con un logotipo de 236px: esa desproporción dejaba aire
+   de sobra a los lados y descuadraba el arco del reflejo, que se calcula en
+   porcentaje del ancho. Aquí la placa se ajusta al contenido, igual que la
+   del riel, y las proporciones se conservan a cualquier tamaño. */
+.sp-placa{position:relative;display:inline-block;
+  padding:34px 30px 29px;margin:0 auto 38px;border-radius:30px;
+  background:linear-gradient(168deg,#FFFFFF 0%,#FAFBFC 48%,#EEF0F4 100%);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.12),
+    0 3px 5px rgba(0,0,0,.28),
+    0 17px 40px rgba(0,0,0,.34),
+    0 0 100px 12px rgba(253,185,19,.1),
+    inset 0 3px 2px rgba(255,255,255,1),
+    inset 0 -3px 3px rgba(21,23,28,.08);
+  animation:sEnt .9s cubic-bezier(.2,.7,.3,1) both}
+
+/* Reflejo especular en la mitad superior, con el borde inferior curvado */
+.sp-placa::before{content:'';position:absolute;left:1px;right:1px;top:1px;height:48%;
+  border-radius:29px 29px 40% 40%/29px 29px 12% 12%;
+  background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,0));
+  pointer-events:none}
+
+/* Filete dorado inferior, sangrado a los lados */
+.sp-placa::after{content:'';position:absolute;left:28%;right:28%;bottom:0;height:3px;
+  border-radius:3px 3px 0 0;
+  background:linear-gradient(90deg,transparent,var(--oro) 24%,var(--oro) 76%,transparent);
+  box-shadow:0 0 16px 1px rgba(253,185,19,.5)}
+
+/* Logotipo dentro de la placa. El ancho de la placa lo define este valor:
+   al ser inline-block, se ajusta al contenido más su relleno. */
+.sp-logo{width:112px;max-width:34vw;height:auto;display:block;position:relative;
+  filter:drop-shadow(0 1px 1px rgba(21,23,28,.09))}
+
+/* Regla que se dibuja bajo la placa, entre ella y el nombre del sistema. */
+.sp-regla{width:0;height:1px;margin:0 auto 24px;
+  background:linear-gradient(90deg,transparent,rgba(253,185,19,.85),transparent);
+  animation:sRegla .95s .35s cubic-bezier(.4,0,.2,1) forwards}
+.sp-sis{font-size:13.5px;letter-spacing:.3em;text-transform:uppercase;text-indent:.3em;
+  color:rgba(255,255,255,.66);font-weight:600;animation:sEnt .85s .4s both}
+.sp-bien{margin-top:58px;animation:sEnt .85s .65s both}
+.sp-hola{font-size:9.5px;letter-spacing:.36em;text-transform:uppercase;text-indent:.36em;
+  color:var(--oro);font-weight:700}
+.sp-nom{font-size:28px;font-weight:600;color:#fff;margin-top:13px;letter-spacing:-.02em;min-height:38px}
+.sp-rol{font-size:10px;letter-spacing:.24em;text-transform:uppercase;text-indent:.24em;
+  color:rgba(255,255,255,.38);margin-top:10px;min-height:16px}
+.sp-aro{width:24px;height:24px;margin:52px auto 0;animation:gira 1.1s linear infinite,sEnt .6s .95s both}
+.sp-aro circle{fill:none;stroke-width:2}
+.sp-aro .p{stroke:rgba(255,255,255,.1)} .sp-aro .a{stroke:var(--oro);stroke-linecap:round;stroke-dasharray:20 80}
+@keyframes sEnt{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes sRegla{to{width:170px}}
+@keyframes gira{to{transform:rotate(360deg)}}
+
+/* ================= RIEL ================= */
+/* Degradado de grises en lugar de negro plano. El negro absoluto aplana la
+   columna y hace que los separadores desaparezcan; con variación tonal el
+   riel gana profundidad y los bloques se distinguen. */
+.riel{position:fixed;left:0;top:0;bottom:0;width:var(--w);
+  background:linear-gradient(178deg,#22262E 0%,#1A1E25 42%,#14171C 100%);
+  display:flex;flex-direction:column;z-index:40;overflow:hidden;
+  box-shadow:4px 0 24px rgba(0,0,0,.18)}
+/* Filete dorado tenue en el canto derecho, que se apaga hacia abajo */
+.riel::after{content:'';position:absolute;right:0;top:0;bottom:0;width:1px;
+  background:linear-gradient(180deg,rgba(253,185,19,.4),rgba(255,255,255,.06) 26%,rgba(255,255,255,.03))}
+/* PLACA DE CRISTAL — el logotipo institucional tiene el texto en gris oscuro
+   y el arco en dorado. Sobre el riel negro el texto se pierde, así que va
+   sobre una superficie clara translúcida. No se usa ningún filtro: la marca
+   conserva sus colores originales. */
+.riel-m{padding:26px 22px 22px;border-bottom:1px solid rgba(255,255,255,.07);text-align:center}
+/* Misma pieza con volumen que en el splash, en menor escala. */
+.riel-placa{position:relative;display:block;padding:20px 16px 17px;margin:0 0 22px;
+  border-radius:18px;
+  background:linear-gradient(168deg,#FFFFFF 0%,#FAFBFC 48%,#EEF0F4 100%);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.1),
+    0 2px 3px rgba(0,0,0,.26),
+    0 10px 24px rgba(0,0,0,.3),
+    0 0 60px 6px rgba(253,185,19,.09),
+    inset 0 2px 1px rgba(255,255,255,1),
+    inset 0 -2px 2px rgba(21,23,28,.08)}
+.riel-placa::before{content:'';position:absolute;left:1px;right:1px;top:1px;height:48%;
+  border-radius:17px 17px 40% 40%/17px 17px 12% 12%;
+  background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,0));
+  pointer-events:none}
+.riel-placa::after{content:'';position:absolute;left:28%;right:28%;bottom:0;height:2px;
+  border-radius:2px 2px 0 0;
+  background:linear-gradient(90deg,transparent,var(--oro) 24%,var(--oro) 76%,transparent);
+  box-shadow:0 0 10px 1px rgba(253,185,19,.45)}
+.riel-m img{width:132px;max-width:100%;height:auto;display:block;position:relative;margin:0 auto;
+  filter:drop-shadow(0 1px 1px rgba(21,23,28,.08))}
+.riel-s{font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--g500);
+  line-height:1.75;font-weight:700}
+.riel-s b{display:block;color:#fff;font-size:13px;letter-spacing:.12em;font-weight:700;margin-bottom:5px}
+
+.riel-n{padding:6px 14px;flex:1;overflow-y:auto}
+.riel-e{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.26em;
+  text-transform:uppercase;color:rgba(255,255,255,.28);padding:16px 14px 11px;font-weight:600}
+.nav-b{width:100%;background:none;border:0;cursor:pointer;text-align:left;position:relative;
+  display:flex;align-items:center;gap:14px;padding:13px 18px;margin-bottom:4px;
+  border-radius:var(--r-s);font-family:inherit;font-size:13.5px;font-weight:600;
+  color:rgba(255,255,255,.5);transition:background .2s,color .2s}
+/* Indicador lateral: barra dorada que crece desde el centro al activarse */
+.nav-b::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:0;background:var(--oro);border-radius:0 3px 3px 0;
+  transition:height .26s cubic-bezier(.4,0,.2,1)}
+.nav-b svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
+.nav-b:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.9)}
+.nav-b.viva{background:rgba(255,255,255,.09);color:#fff}
+.nav-b.viva::before{height:52%}
+.nav-b.viva svg{stroke:var(--oro)}
+
+.riel-p{padding:18px;background:rgba(0,0,0,.28);border-top:1px solid rgba(255,255,255,.07)}
+.riel-u{display:flex;align-items:center;gap:13px;margin-bottom:14px}
+.avatar{width:40px;height:40px;background:var(--oro);color:var(--g950);flex-shrink:0;border-radius:var(--r-s);
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.ru-n{font-size:13px;font-weight:700;color:#fff;line-height:1.3}
+.ru-r{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:rgba(255,255,255,.42);font-weight:600;margin-top:3px}
+.riel-v{display:flex;align-items:center;gap:11px;padding:13px 15px;border-radius:var(--r-s);
+  background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);
+  font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(255,255,255,.42);line-height:1.5;
+  letter-spacing:.18em;text-transform:uppercase;font-weight:600}
+.foco{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.foco.verde{background:#3FBF74;box-shadow:0 0 0 3px rgba(63,191,116,.16)}
+.foco.ambar{background:var(--oro);box-shadow:0 0 0 3px rgba(253,185,19,.2)}
+.foco.rojo{background:#E5544B;box-shadow:0 0 0 3px rgba(229,84,75,.18);animation:pul 2s infinite}
+@keyframes pul{0%,100%{opacity:1}50%{opacity:.38}}
+.riel-v b{display:block;color:var(--oro);font-weight:600;font-size:12px;letter-spacing:.04em;
+  text-transform:none;margin-top:4px}
+
+/* ================= OBRA ================= */
+/* min-height en porcentaje, no en vh: Apps Script sirve la página dentro de
+   un iframe y Safari móvil calcula mal esa unidad cuando la barra de
+   direcciones se contrae, dejando un salto en el pie de la página. */
+.obra{margin-left:var(--w);min-height:100%;display:flex;flex-direction:column}
+.cinta{background:var(--oro);color:var(--g950);font-size:11px;letter-spacing:.01em;
+  padding:11px 34px;display:flex;align-items:center;gap:13px;font-weight:500;
+  box-shadow:0 1px 3px rgba(21,23,28,.12)}
+.cinta svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0}
+.cinta b{font-weight:700;letter-spacing:.17em;font-size:9.5px;text-transform:uppercase;margin-right:4px}
+.cinta-id{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:9.5px;
+  letter-spacing:.18em;text-transform:uppercase;opacity:.62;font-weight:600}
+/* margin auto: sin esto el contenido se pega al borde izquierdo y en un
+   monitor ancho queda todo el espacio muerto del lado derecho. */
+.tela{padding:36px 40px 70px;max-width:1320px;width:100%;margin:0 auto;flex:1}
+.vista{display:none}
+.vista.viva{display:block;animation:sube .38s cubic-bezier(.2,.7,.3,1)}
+@keyframes sube{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* ================= CABECERA DE VISTA =================
+   Tres niveles de lectura: antetítulo que sitúa el módulo, título, y bajada
+   descriptiva. A la derecha, el estado de la lista — dato que el analista
+   necesita ver antes de confiar en cualquier resultado, y que en el riel
+   quedaba demasiado pequeño. */
+.cabecera{margin-bottom:30px;padding-bottom:22px;position:relative;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:36px;flex-wrap:wrap}
+/* Filete inferior: segmento dorado a la izquierda que se disuelve en gris */
+.cabecera::after{content:'';position:absolute;left:0;right:0;bottom:0;height:1px;
+  background:linear-gradient(90deg,var(--oro) 0,var(--oro) 68px,var(--g200) 68px,var(--g200) 100%)}
+
+.cab-txt{flex:1;min-width:300px}
+.cab-ante{display:inline-flex;align-items:center;gap:10px;margin-bottom:14px;
+  /* El interletrado se ajusta al nombre completo del régimen —Prevención de
+     Lavado de Dinero y Financiamiento al Terrorismo— para que quepa en una
+     sola línea sin partirse. white-space:nowrap lo garantiza en escritorio. */
+  font-size:10.5px;font-weight:700;letter-spacing:.17em;text-transform:uppercase;
+  color:var(--oro-o);white-space:nowrap}
+.cab-rombo{width:7px;height:7px;background:var(--oro);transform:rotate(45deg);
+  border-radius:1px;flex-shrink:0;box-shadow:0 0 0 3px rgba(253,185,19,.2)}
+.cabecera h1{font-size:31px;font-weight:600;letter-spacing:-.032em;line-height:1.12;
+  margin-bottom:12px}
+/* Texto justificado sin partición de palabras: la partición automática corta
+   términos a media línea y en un párrafo angosto se lee peor que un borde
+   irregular. Aplica a las cinco cabeceras. */
+.cabecera p{font-size:15px;color:var(--g500);line-height:1.7;max-width:660px;
+  text-align:justify;text-justify:inter-word;
+  hyphens:none;-webkit-hyphens:none;-ms-hyphens:none;
+  word-break:normal;overflow-wrap:break-word}
+
+/* Variante destacada: la vista de consulta es la principal del sistema y su
+   cabecera se trata como panel, no como encabezado corrido. */
+.cabecera.panel-cab{background:var(--blanco);border-radius:var(--r-l);box-shadow:var(--s2);
+  padding:38px 40px;align-items:center;overflow:hidden;position:relative;padding-bottom:38px}
+.cabecera.panel-cab::after{left:0;right:auto;top:0;bottom:auto;width:130px;height:4px;
+  background:var(--oro);border-radius:0 0 4px 0}
+.cabecera.panel-cab h1{font-size:38px;letter-spacing:-.036em;line-height:1.06;margin-bottom:14px}
+.cabecera.panel-cab .cab-hilo{display:block;width:54px;height:3px;background:var(--oro);
+  border-radius:2px;margin:0 0 18px}
+.cabecera.panel-cab p{font-size:15.5px;max-width:540px}
+.cab-der{display:flex;flex-direction:column;align-items:flex-end;gap:18px;flex-shrink:0}
+
+/* Ilustración de cabecera. SVG propio en la paleta institucional: evita
+   depender de una imagen externa —que puede caer o tener restricciones de
+   licencia— y permite ajustarla al resto de la interfaz. */
+.cab-fig{width:180px;height:180px;flex-shrink:0}
+.cab-fig svg{width:100%;height:100%}
+.cab-fig img{width:100%;height:auto;display:block;border-radius:var(--r-m)}
+
+/* Tarjeta de estado de la lista */
+/* Contorno dorado: la vigencia de la lista es el dato que valida cualquier
+   resultado, así que se distingue del resto de las superficies blancas. */
+.cab-estado{display:flex;align-items:center;gap:15px;padding:15px 20px;flex-shrink:0;
+  background:var(--oro-n);border:2px solid var(--oro);border-radius:var(--r-m);
+  box-shadow:0 2px 6px rgba(253,185,19,.22),0 10px 26px rgba(253,185,19,.16)}
+.cab-foco{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.cab-foco.verde{background:#3FBF74;box-shadow:0 0 0 4px rgba(63,191,116,.16)}
+.cab-foco.ambar{background:var(--oro);box-shadow:0 0 0 4px rgba(253,185,19,.2)}
+.cab-foco.rojo{background:#E5544B;box-shadow:0 0 0 4px rgba(229,84,75,.18);animation:pul 2s infinite}
+.cab-k{font-size:8px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--oro-o)}
+.cab-v{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;
+  color:var(--g900);margin-top:4px;letter-spacing:.01em}
+
+/* ================= CONSOLA ================= */
+.consola{background:var(--blanco);border-radius:var(--r-l);box-shadow:var(--s2);padding:22px 24px}
+
+.campo-f{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.campo-e{flex:1;min-width:260px;position:relative;display:flex;align-items:center;
+  background:var(--g100);border-radius:var(--r-pill);box-shadow:var(--hueco);
+  transition:box-shadow .22s,background .22s}
+.campo-e:focus-within{background:var(--blanco);
+  box-shadow:inset 0 0 0 1.5px var(--oro),0 0 0 4px rgba(253,185,19,.14)}
+.campo{width:100%;padding:18px 52px 18px 56px;border:0;background:transparent;
+  border-radius:var(--r-pill);font-family:inherit;font-size:16.5px;font-weight:500;color:var(--g900)}
+.campo:focus{outline:0}
+.campo::placeholder{color:var(--g400);font-weight:500}
+.lupa{position:absolute;left:22px;width:20px;height:20px;stroke:var(--g400);fill:none;
+  stroke-width:2.2;stroke-linecap:round;pointer-events:none;transition:stroke .22s}
+.campo-e:focus-within .lupa{stroke:var(--oro-h)}
+.borrar{position:absolute;right:14px;background:var(--g200);border:0;cursor:pointer;
+  width:26px;height:26px;border-radius:50%;display:none;align-items:center;justify-content:center;
+  transition:background .18s}
+.borrar svg{width:13px;height:13px;stroke:var(--g600);fill:none;stroke-width:2.5;stroke-linecap:round}
+.borrar:hover{background:var(--g300)}
+.borrar.hay{display:flex}
+
+.btn{border:0;cursor:pointer;font-family:inherit;font-weight:700;font-size:11px;
+  letter-spacing:.16em;text-transform:uppercase;transition:all .22s;border-radius:var(--r-pill);
+  display:inline-flex;align-items:center;justify-content:center;gap:10px}
+.btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.3}
+.btn-pri{background:var(--g900);color:#fff;padding:19px 36px;
+  box-shadow:0 2px 5px rgba(21,23,28,.18),0 8px 20px rgba(21,23,28,.16)}
+/* Inversión al pasar el cursor: el negro cede al amarillo institucional */
+.btn-pri:hover:not(:disabled){background:var(--oro);color:var(--g950);transform:translateY(-1px);
+  box-shadow:0 4px 10px rgba(253,185,19,.4),0 12px 28px rgba(253,185,19,.26)}
+.btn-pri:disabled{background:var(--g300);color:#fff;cursor:default;box-shadow:none;transform:none}
+.btn-borde{background:var(--blanco);color:var(--g900);padding:13px 24px;font-size:10px;box-shadow:var(--s1)}
+.btn-borde:hover{background:var(--oro);color:var(--g950);box-shadow:var(--s2);transform:translateY(-1px)}
+/* Acción irreversible: se distingue de la suspensión temporal, que está a su
+   lado en la misma celda. */
+.btn-riesgo{margin-left:8px;color:var(--rojo);background:var(--rojo-f)}
+.btn-riesgo:hover{background:var(--rojo);color:#fff}
+.td-acc .btn{white-space:nowrap}
+
+/* Refinamiento en línea: siempre visible, sin desplegable que estorbe */
+.refinar{margin-top:18px;padding-top:16px;border-top:1px solid var(--g150);
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.ref-et{font-size:9px;font-weight:700;letter-spacing:.19em;text-transform:uppercase;
+  color:var(--g500);flex-shrink:0}
+.ref-in{width:190px;padding:10px 16px;border:1px solid var(--g200);border-radius:var(--r-pill);
+  font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--blanco);letter-spacing:.05em}
+.ref-in:focus{outline:0;border-color:var(--oro);box-shadow:0 0 0 3px rgba(253,185,19,.14)}
+.ref-in::placeholder{color:var(--g400);letter-spacing:0;font-family:'IBM Plex Sans',sans-serif}
+.ref-nota{font-size:11.5px;color:var(--g400);font-style:italic}
+
+/* Refinamiento activo: el borde dorado y la etiqueta hacen imposible aplicar
+   un RFC sin darse cuenta de que está aplicado. */
+.refinar.activo .ref-in{border-color:var(--oro);background:var(--oro-n);font-weight:600}
+.refinar.activo .ref-et{color:var(--oro-o)}
+.ref-quitar{display:none;align-items:center;gap:7px;background:var(--oro-n);border:1px solid var(--oro-b);
+  color:var(--oro-o);cursor:pointer;font-family:inherit;font-size:9px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;padding:9px 14px;border-radius:var(--r-pill);
+  transition:background .18s}
+.ref-quitar:hover{background:var(--oro-p)}
+.ref-quitar svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2.6}
+
+.ref-aviso{display:none;margin-top:14px;padding:12px 16px;border-radius:var(--r-m);
+  background:var(--oro-n);border:1px solid var(--oro-b);color:var(--oro-o);
+  font-size:12px;font-weight:500;animation:sube .28s ease-out}
+.ref-aviso.vivo{display:block}
+
+/* Etiqueta del RFC aplicado dentro de la barra de resultados */
+.br-rfc{display:inline-flex;align-items:center;gap:8px;margin:0 4px;padding:8px 14px;
+  background:rgba(253,185,19,.16);border:1px solid rgba(253,185,19,.4);border-radius:var(--r-pill);
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;color:var(--oro);
+  letter-spacing:.06em}
+.br-rfc svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
+.tipo-chip{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;
+  letter-spacing:.16em;padding:6px 14px;border:1px solid var(--g200);color:var(--g400);
+  background:var(--g50);border-radius:var(--r-pill);transition:all .22s;text-transform:uppercase}
+.tipo-chip.act{color:var(--oro-o);border-color:var(--oro-b);background:var(--oro-n)}
+
+/* ================= CARGA ================= */
+.cargando{margin-top:22px;background:var(--blanco);border-radius:var(--r-l);
+  box-shadow:var(--s2);text-align:center;padding:78px 20px}
+.aro{width:36px;height:36px;margin:0 auto 24px;animation:gira 1.1s linear infinite}
+.aro circle{fill:none;stroke-width:2.5}
+.aro .p{stroke:var(--g150)} .aro .a{stroke:var(--oro);stroke-linecap:round;stroke-dasharray:22 78}
+.cargando-t{font-size:10px;color:var(--g400);letter-spacing:.26em;text-transform:uppercase;
+  font-weight:700;animation:resp 1.5s ease-in-out infinite}
+@keyframes resp{0%,100%{opacity:.4}50%{opacity:1}}
+
+/* ================= BARRA DE RESULTADOS ================= */
+.barra{margin-top:24px;background:var(--g900);color:#fff;display:flex;align-items:stretch;
+  flex-wrap:wrap;border-radius:var(--r-l);overflow:hidden;
+  box-shadow:0 2px 6px rgba(21,23,28,.16),0 12px 32px rgba(21,23,28,.18)}
+.br-c{padding:20px 28px;display:flex;align-items:center;gap:17px}
+.br-n{font-family:'IBM Plex Mono',monospace;font-size:36px;font-weight:600;color:var(--oro);line-height:.9}
+.br-e{font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.4);
+  font-weight:700;line-height:1.7}
+.br-e b{display:block;color:#fff;font-size:12.5px;letter-spacing:.01em;font-weight:500;
+  text-transform:none;max-width:270px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.br-d{display:flex;align-items:center;flex:1;padding:0 6px;flex-wrap:wrap}
+.br-lv{padding:8px 14px;margin:0 4px;display:flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,.07);border-radius:var(--r-pill)}
+.br-pt{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.br-nc{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600}
+.br-nn{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.5);font-weight:700}
+.br-a{margin-left:auto;display:flex;align-items:center;gap:8px;padding:0 18px 0 8px}
+.br-b{background:rgba(255,255,255,.09);border:0;cursor:pointer;border-radius:var(--r-pill);
+  font-family:inherit;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  color:rgba(255,255,255,.8);padding:12px 20px;display:flex;align-items:center;gap:9px;transition:all .2s}
+.br-b:hover{color:var(--g900);background:var(--oro)}
+.br-b svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.3}
+
+/* ================= COTEJO LADO A LADO ================= */
+.cotejo{margin:16px 26px 0;border-radius:var(--r-m);background:var(--g50);
+  border:1px solid var(--g150);overflow:hidden}
+.cot-t{display:flex;align-items:center;gap:10px;padding:12px 18px;
+  background:var(--g100);border-bottom:1px solid var(--g150);
+  font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--g500)}
+.cot-t svg{width:14px;height:14px;stroke:var(--oro-o);fill:none;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round}
+
+.cot-f{padding:16px 18px;border-bottom:1px solid var(--g150)}
+.cot-f:last-child{border-bottom:0}
+.cot-k{font-size:8px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--g400);margin-bottom:11px}
+.cot-par{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.cot-lado{flex:1;min-width:150px}
+.cot-lado span{display:block;font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--g400);font-weight:700;margin-bottom:5px}
+.cot-lado code{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;
+  letter-spacing:.06em;color:var(--g900);word-break:break-all;display:block}
+.cot-vs{flex-shrink:0;width:26px;height:26px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;background:var(--rojo-f)}
+.cot-vs svg{width:14px;height:14px;stroke:var(--rojo);fill:none;stroke-width:2.6;
+  stroke-linecap:round;stroke-linejoin:round}
+.cot-f.igual .cot-vs{background:var(--verde-f)}
+.cot-f.igual .cot-vs svg{stroke:var(--verde)}
+
+/* Carácter que difiere: fondo rojo tenue y subrayado, no solo color — el
+   color solo no distingue para quien no percibe bien el rojo. */
+.dif{background:var(--rojo-f);color:var(--rojo);font-weight:700;
+  border-bottom:2px solid var(--rojo);border-radius:2px;padding:0 1px}
+.cot-n{margin-top:12px;padding:10px 14px;background:var(--oro-n);border-radius:var(--r-s);
+  font-size:11.5px;color:var(--oro-o);line-height:1.6}
+
+/* ================= REGISTRO ================= */
+.reg{background:var(--blanco);border-radius:var(--r-l);margin-top:14px;overflow:hidden;
+  box-shadow:var(--s2);animation:sube .38s cubic-bezier(.2,.7,.3,1) both;
+  transition:box-shadow .26s,transform .26s}
+.reg:hover{box-shadow:var(--s3);transform:translateY(-2px)}
+
+/* Franja superior con el color del nivel. Sustituye a la tira lateral: ocupa
+   todo el ancho y por lo tanto se lee antes que cualquier otra cosa. */
+.reg-franja{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 26px;background:var(--g50);border-bottom:1px solid var(--g150)}
+.reg.CONFIRMADA .reg-franja{background:var(--rojo-f)}
+.reg.PROBABLE   .reg-franja{background:#FDF4EC}
+.reg.POSIBLE    .reg-franja{background:var(--oro-n)}
+.reg.REVISION   .reg-franja{background:var(--g100)}
+.reg-i{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:9.5px;
+  font-weight:600;color:var(--g400);letter-spacing:.16em;text-transform:uppercase}
+
+.sello{display:inline-flex;align-items:center;gap:8px;font-size:9px;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;padding:8px 15px;color:#fff;border-radius:var(--r-pill)}
+.sello svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.5}
+.reg.CONFIRMADA .sello{background:var(--nc);box-shadow:0 2px 8px rgba(161,28,18,.3)}
+.reg.PROBABLE   .sello{background:var(--np);box-shadow:0 2px 8px rgba(181,96,28,.28)}
+.reg.POSIBLE    .sello{background:var(--npo);box-shadow:0 2px 8px rgba(184,133,12,.28)}
+.reg.REVISION   .sello{background:var(--nr)}
+.reg.AMPLIADA   .sello{background:var(--na)}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:9px;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;padding:7px 13px;border-radius:var(--r-pill);
+  background:rgba(255,255,255,.8);color:var(--g600);border:1px solid var(--g200)}
+.chip svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2.3}
+
+.reg-c{min-width:0}
+.reg-encabezado{display:flex;align-items:flex-start;gap:22px;padding:24px 26px 0}
+.reg-id{flex:1;min-width:0}
+/* El margen inferior solo aplica cuando hay estatus debajo. Sin él, el hueco
+   quedaba flotando en el 82% de los registros que no lo tienen capturado. */
+.reg-nom{font-size:22px;font-weight:600;line-height:1.24;letter-spacing:-.024em}
+.reg-nom + .estatus{margin-top:13px}
+
+/* El estatus como píldora en línea, no como bloque de ancho completo: pesa
+   lo que debe sin dominar la tarjeta. */
+.estatus{display:inline-flex;align-items:center;gap:10px;padding:9px 17px;
+  font-size:12.5px;font-weight:600;border-radius:var(--r-pill);
+  background:var(--rojo-f);color:var(--rojo);border:1px solid var(--rojo-b)}
+.estatus.libre{background:var(--verde-f);color:var(--verde);border-color:var(--verde-b)}
+.estatus svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.3;flex-shrink:0}
+
+/* El anillo de puntaje se retiró: la etiqueta de NIVEL ya comunica lo que el
+   analista necesita, sin el número crudo que podía repetirse por razones
+   distintas entre un registro y otro. */
+
+.dict{margin:20px 26px 0;padding:14px 18px;background:var(--oro-n);border-radius:var(--r-m);
+  font-size:12.5px;color:var(--g700);line-height:1.65;display:flex;gap:12px;align-items:flex-start}
+.dict span{text-align:justify;text-justify:inter-word;hyphens:none;-webkit-hyphens:none}
+.dict svg{width:15px;height:15px;stroke:var(--oro-o);fill:none;stroke-width:2;flex-shrink:0;margin-top:2px}
+
+/* auto-fit: el cuadro se reparte entre las celdas que existan. Cuando el
+   registro no trae CURP quedan dos columnas parejas, no dos y un hueco. */
+.cuadro{margin:18px 26px 24px;border-radius:var(--r-m);background:var(--g200);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));overflow:hidden;gap:1px}
+.cel{padding:16px 20px;min-width:0;background:var(--blanco)}
+.cel-k{display:flex;align-items:center;gap:8px;font-size:8px;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--g400);margin-bottom:11px}
+.cel-k svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.2}
+.cel-v{font-size:15.5px;color:var(--g900);word-break:break-word;line-height:1.4;font-weight:500}
+.cel-v.mono{font-size:15px;letter-spacing:.04em;font-weight:600}
+.cel-x{font-size:11.5px;color:var(--g400);line-height:1.55}
+
+.reg-p{padding:14px 26px;background:var(--g50);border-top:1px solid var(--g150);display:flex;align-items:center}
+.det-b{background:none;border:0;cursor:pointer;font-family:inherit;font-size:9.5px;
+  letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--g500);
+  padding:8px 0;display:inline-flex;align-items:center;gap:10px}
+.det-b:hover{color:var(--g900)}
+.det-b svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.3;transition:transform .26s}
+.det-b.ab svg{transform:rotate(90deg)}
+.detalle{display:none;padding:22px 26px;background:var(--g50);border-top:1px solid var(--g150)}
+.detalle.ab{display:block;animation:sube .28s ease-out}
+.det-t{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--g400);font-weight:700;margin-bottom:13px}
+.det-c{font-family:'IBM Plex Mono',monospace;font-size:11.5px;white-space:pre-wrap;color:var(--g600);
+  line-height:1.95;background:var(--blanco);border-radius:var(--r-m);padding:18px 20px;
+  box-shadow:var(--s1);overflow-x:auto}
+
+/* ================= VACÍO / ERROR ================= */
+.vacio{margin-top:24px;background:var(--blanco);border-radius:var(--r-l);
+  box-shadow:var(--s2);padding:70px 36px;text-align:center}
+.vacio-i{width:34px;height:34px;margin:0 auto 26px;stroke:var(--g400);fill:none;stroke-width:1.6;
+  padding:16px;background:var(--g100);border-radius:var(--r-m);box-sizing:content-box}
+.vacio-t{font-size:20px;font-weight:600;margin-bottom:13px;letter-spacing:-.018em}
+.vacio-p{font-size:13.5px;color:var(--g500);max-width:550px;margin:0 auto;line-height:1.7}
+.vacio-l{margin-top:34px;padding:20px 24px;background:var(--g50);border-radius:var(--r-m);
+  font-size:11.5px;color:var(--g400);max-width:600px;margin-left:auto;margin-right:auto;line-height:1.75}
+.acciones{margin-top:28px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.error{margin-top:24px;padding:18px 22px;background:var(--rojo-f);border-radius:var(--r-m);
+  color:#7A160F;font-size:13px;display:flex;gap:14px;align-items:flex-start;box-shadow:var(--s1)}
+.error svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2.2;flex-shrink:0;margin-top:1px}
+.exito{background:var(--verde-f);color:#12503A}
+
+/* ================= SESIÓN CERRADA ================= */
+.vencida{position:fixed;inset:0;z-index:900;display:none;align-items:center;justify-content:center;
+  padding:28px;background:rgba(12,14,18,.94);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.vencida.vivo{display:flex;animation:sube .34s cubic-bezier(.2,.7,.3,1)}
+.vencida-caja{max-width:440px;width:100%;background:var(--blanco);border-radius:var(--r-l);
+  padding:46px 40px;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+.vencida-ico{width:28px;height:28px;margin:0 auto 24px;padding:16px;background:var(--g100);
+  border-radius:18px;box-sizing:content-box;stroke:var(--g500);fill:none;stroke-width:1.9}
+.vencida-t{font-size:21px;font-weight:600;letter-spacing:-.02em;margin-bottom:12px}
+.vencida-p{font-size:13.5px;color:var(--g500);line-height:1.7}
+
+/* ================= PANELES ================= */
+.panel{background:var(--blanco);border-radius:var(--r-l);box-shadow:var(--s2);overflow:hidden}
+.panel+.panel{margin-top:18px}
+/* Encabezado del panel: filete dorado a la izquierda del ícono y rótulo con
+   más cuerpo, para que se lea como título de sección y no como una línea más. */
+.panel-h{padding:20px 28px;border-bottom:1px solid var(--g150);display:flex;
+  align-items:center;gap:14px;background:var(--g50)}
+.panel-h svg{width:17px;height:17px;stroke:var(--oro-h);fill:none;stroke-width:2.1;flex-shrink:0}
+.panel-h h2{font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--g900)}
+.panel-h::before{content:'';width:4px;height:20px;background:var(--oro);border-radius:2px;flex-shrink:0}
+.panel-b{padding:28px}
+.panel-b.sinp{padding:0}
+
+/* ================= LISTAS DESPLEGABLES =================
+   El <select> original queda oculto pero presente: sigue siendo la fuente del
+   valor y el respaldo si el componente fallara. */
+.sel{position:relative;width:100%}
+.sel select{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
+
+.sel-btn{width:100%;display:flex;align-items:center;gap:12px;cursor:pointer;
+  padding:13px 16px 13px 18px;border:1px solid var(--g200);border-radius:var(--r-pill);
+  background:var(--g100);box-shadow:var(--hueco);font-family:inherit;font-size:13px;
+  color:var(--g900);text-align:left;transition:border-color .2s,background .2s,box-shadow .2s}
+.sel-btn:hover{border-color:var(--g300)}
+.sel.abierto .sel-btn{background:var(--blanco);border-color:var(--oro);
+  box-shadow:0 0 0 3px rgba(253,185,19,.14)}
+.sel-txt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-flecha{width:15px;height:15px;flex-shrink:0;color:var(--g400);transition:transform .24s,color .2s}
+.sel.abierto .sel-flecha{transform:rotate(180deg);color:var(--oro-o)}
+
+.sel-menu{position:absolute;left:0;right:0;top:calc(100% + 7px);z-index:70;
+  display:none;padding:7px;background:var(--blanco);border-radius:var(--r-m);
+  max-height:270px;overflow-y:auto;
+  box-shadow:0 0 0 1px var(--g150),0 6px 16px rgba(21,23,28,.09),0 18px 44px rgba(21,23,28,.12)}
+.sel.abierto .sel-menu{display:block;animation:selAbre .2s cubic-bezier(.2,.7,.3,1)}
+@keyframes selAbre{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
+
+.sel-op{width:100%;display:flex;align-items:center;gap:11px;cursor:pointer;
+  padding:12px 14px;border:0;border-radius:var(--r-s);background:none;
+  font-family:inherit;font-size:13px;color:var(--g700);text-align:left;transition:background .16s,color .16s}
+.sel-op span{flex:1}
+.sel-op:hover{background:var(--g100);color:var(--g900)}
+.sel-op.viva{background:var(--oro-n);color:var(--g900);font-weight:600}
+.sel-check{width:15px;height:15px;flex-shrink:0;opacity:0;color:var(--oro-o);transition:opacity .16s}
+.sel-op.viva .sel-check{opacity:1}
+
+/* El componente hereda el alto de los campos con los que convive */
+.forma .sel-btn{padding:14px 16px 14px 18px}
+.filtro-campo .sel-btn{padding:10px 14px 10px 16px;font-size:12.5px}
+.filtro-campo .sel-menu{font-size:12.5px}
+
+/* ---- Barra de filtros de la bitácora ---- */
+/* Botón de actualizar en el encabezado del panel */
+.refrescar{background:none;border:0;cursor:pointer;padding:7px;margin-left:12px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  color:var(--g400);transition:background .2s,color .2s}
+.refrescar:hover{background:var(--g150);color:var(--g900)}
+.refrescar svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.1}
+.refrescar.girando svg{animation:gira .7s linear}
+
+.td-disp{font-size:11.5px;color:var(--g500);line-height:1.4}
+
+.panel-n{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;
+  font-weight:600;color:var(--g400);letter-spacing:.06em}
+.filtros{padding:18px 28px;background:var(--g50);border-bottom:1px solid var(--g150);
+  display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.filtro-rapido{display:flex;gap:2px;background:var(--g150);padding:3px;border-radius:var(--r-pill)}
+.fr-b{background:none;border:0;cursor:pointer;font-family:inherit;font-size:10px;font-weight:700;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--g500);padding:9px 15px;
+  border-radius:var(--r-pill);transition:all .2s;white-space:nowrap}
+.fr-b:hover{color:var(--g900)}
+.fr-b.viva{background:var(--blanco);color:var(--g900);box-shadow:var(--s1)}
+.filtro-campo{display:flex;flex-direction:column;gap:6px}
+.filtro-campo.crece{flex:1;min-width:180px}
+.filtro-campo label{font-size:8px;font-weight:700;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--g400);padding-left:2px}
+.filtro-campo input,.filtro-campo select{padding:10px 14px;border:1px solid var(--g200);
+  border-radius:var(--r-pill);font-family:inherit;font-size:12.5px;background:var(--blanco);color:var(--g900)}
+.filtro-campo input:focus,.filtro-campo select:focus{outline:0;border-color:var(--oro);
+  box-shadow:0 0 0 3px rgba(253,185,19,.14)}
+.filtros .btn-borde{padding:11px 20px}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+/* ENCABEZADO DE TABLA
+   En blanco sobre blanco y a 8px, la fila de encabezados se confundía con los
+   datos: no había separación visual entre qué es rótulo y qué es contenido.
+   Se resuelve con superficie oscura y contraste invertido, que es además lo
+   que se espera de un instrumento de trabajo. */
+th{text-align:left;font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:rgba(255,255,255,.72);padding:16px 22px;background:var(--g900);
+  border-bottom:2px solid var(--oro);white-space:nowrap;position:sticky;top:0;z-index:5}
+thead tr th:first-child{border-top-left-radius:0}
+td{padding:15px 22px;border-bottom:1px solid var(--g150);vertical-align:middle}
+tbody tr:first-child td{padding-top:17px}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--oro-n)}
+tr.inactivo td{opacity:.42}
+.tabla-e{overflow-x:auto}
+.td-q{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.td-n{font-family:'IBM Plex Mono',monospace;text-align:right;font-weight:600}
+.td-acc{text-align:right}
+.vacio-tb{padding:52px 22px;text-align:center;color:var(--g400);font-size:12.5px}
+
+/* Ficha de rol en color sólido. El privilegio es lo que se audita en esta
+   tabla, así que debe distinguirse de un vistazo: en tono tenue los tres
+   roles se confundían entre sí y con el resto de la fila. */
+.rol{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.14em;
+  padding:7px 14px;border-radius:var(--r-pill);color:#fff;white-space:nowrap}
+.rol.ADMIN{background:var(--rojo);box-shadow:0 2px 7px rgba(161,28,18,.32)}
+.rol.AUDITOR{background:var(--oro-h);color:var(--g950);box-shadow:0 2px 7px rgba(224,162,0,.34)}
+.rol.CONSULTA{background:var(--g400);box-shadow:0 2px 6px rgba(152,160,172,.3)}
+
+/* Estado del acceso */
+.est-p{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;white-space:nowrap}
+.est-p::before{content:'';width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.est-p.si{color:var(--verde)}
+.est-p.si::before{background:var(--verde);box-shadow:0 0 0 3px rgba(21,96,62,.14)}
+.est-p.no{color:var(--g400)}
+.est-p.no::before{background:var(--g300)}
+
+/* Encabezados ordenables */
+.th-ord{cursor:pointer;user-select:none;-webkit-user-select:none;position:relative;
+  padding-right:28px!important;transition:color .18s,background .18s}
+.th-ord:hover{color:#fff;background:var(--g800)}
+.th-ord::after{content:'';position:absolute;right:13px;top:50%;margin-top:-6px;
+  width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;
+  border-bottom:5px solid rgba(255,255,255,.3);transition:border-color .18s}
+.th-ord::before{content:'';position:absolute;right:13px;top:50%;margin-top:1px;
+  width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;
+  border-top:5px solid rgba(255,255,255,.3);transition:border-color .18s}
+.th-ord.ord{color:#fff}
+.th-ord.ord::after{border-bottom-color:var(--oro)}
+.th-ord.ord::before{border-top-color:transparent}
+.th-ord.ord.desc::after{border-bottom-color:transparent}
+.th-ord.ord.desc::before{border-top-color:var(--oro)}
+.acc{display:inline-flex;align-items:center;gap:8px;font-size:8.5px;font-weight:700;border-radius:var(--r-pill);
+  letter-spacing:.14em;text-transform:uppercase;padding:6px 13px;white-space:nowrap}
+.acc-p{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+.acc.CONSULTA{color:var(--g500);background:var(--g100)}
+.acc.EXPORTACION{color:var(--oro-o);background:var(--oro-n)}
+.acc.ACCESO_DENEGADO{color:var(--rojo);background:var(--rojo-f)}
+.acc.REINDEXADO,.acc.REINDEXADO_MANUAL{color:var(--verde);background:var(--verde-f)}
+.acc.ADMIN{color:var(--g900);background:var(--g150)}
+.acc.ALERTA_USO{color:#fff;background:var(--rojo)}
+.nv{font-size:8.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  padding:6px 12px;color:#fff;border-radius:var(--r-pill)}
+.nv.CONFIRMADA{background:var(--nc)} .nv.PROBABLE{background:var(--np)}
+.nv.POSIBLE{background:var(--npo)}   .nv.REVISION{background:var(--nr)} .nv.AMPLIADA{background:var(--na)}
+
+.forma{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:20px;margin-bottom:24px}
+.forma label{display:block;font-size:8.5px;font-weight:700;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--g500);margin-bottom:10px}
+.forma input,.forma select{width:100%;padding:14px 18px;border:1px solid var(--g200);
+  border-radius:var(--r-pill);font-family:inherit;font-size:13px;background:var(--g100);box-shadow:var(--hueco)}
+.forma textarea{width:100%;padding:15px 19px;border:1px solid var(--g200);border-radius:var(--r-m);
+  font-family:inherit;font-size:13.5px;line-height:1.65;background:var(--g100);
+  box-shadow:var(--hueco);resize:vertical;min-height:120px;color:var(--g900)}
+.forma input:focus,.forma select:focus,.forma textarea:focus{outline:0;border-color:var(--oro-b);
+  background:var(--blanco);box-shadow:0 0 0 3px rgba(253,185,19,.14)}
+.forma textarea::placeholder{color:var(--g400);font-style:italic}
+/* Nota de ayuda bajo un campo: explica qué se espera sin ocupar el propio
+   campo, donde el texto desaparece al empezar a escribir. */
+.campo-ayuda{font-size:11.5px;color:var(--g400);line-height:1.65;margin-top:9px;padding-left:2px;
+  text-align:justify;text-justify:inter-word;hyphens:none;-webkit-hyphens:none;max-width:640px}
+
+.fichas{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.ficha{flex:1;min-width:168px;background:var(--blanco);border-radius:var(--r-l);
+  padding:24px 26px;position:relative;overflow:hidden;box-shadow:var(--s2)}
+.ficha::after{content:'';position:absolute;left:26px;right:26px;top:0;height:3px;
+  background:var(--g200);border-radius:0 0 99px 99px}
+.ficha.viva::after{background:var(--oro)}
+.ficha-n{font-family:'IBM Plex Mono',monospace;font-size:34px;font-weight:600;color:var(--g900);line-height:.92}
+.ficha.apagada .ficha-n{color:var(--g300)}
+.ficha-k{font-size:8px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--g400);margin-top:13px;line-height:1.7}
+
+/* ================= ESTADO INICIAL =================
+   Ocupa el lugar donde aparecerán los resultados. Sin él la pantalla arranca
+   con un gran vacío bajo el buscador, que además no le dice nada al analista
+   sobre qué esperar. */
+.inicio{margin-top:22px;border-radius:var(--r-l);box-shadow:var(--s2);overflow:hidden;
+  background:var(--blanco)}
+
+.inicio-alto{padding:48px 44px 42px;display:flex;gap:44px;align-items:center;flex-wrap:wrap;
+  background:linear-gradient(135deg,#FFFDF6 0%,var(--blanco) 58%);
+  border-bottom:1px solid var(--g150);position:relative}
+.inicio-alto::after{content:'';position:absolute;left:0;top:0;width:100%;height:3px;
+  background:linear-gradient(90deg,var(--oro) 0,var(--oro) 120px,transparent 260px)}
+.inicio-fig{width:148px;height:148px;flex-shrink:0;position:relative}
+.inicio-fig svg{width:100%;height:100%}
+.inicio-txt{flex:1;min-width:280px}
+.inicio-t{font-size:26px;font-weight:600;letter-spacing:-.028em;margin-bottom:12px;line-height:1.18}
+.inicio-p{font-size:15px;color:var(--g500);line-height:1.72;max-width:600px;
+  text-align:justify;text-justify:inter-word;hyphens:none;-webkit-hyphens:none}
+
+.inicio-lista{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  background:var(--g150);gap:1px}
+.inicio-it{background:var(--blanco);padding:26px 28px;display:flex;gap:16px;align-items:flex-start;
+  transition:background .22s}
+.inicio-it:hover{background:var(--oro-n)}
+.inicio-ico{width:22px;height:22px;padding:12px;border-radius:14px;box-sizing:content-box;
+  background:var(--oro-n);flex-shrink:0}
+.inicio-ico svg{width:22px;height:22px;stroke:var(--oro-o);fill:none;stroke-width:1.8}
+.inicio-it b{display:block;font-size:14px;font-weight:600;margin-bottom:6px;letter-spacing:-.012em}
+.inicio-it span{font-size:12.5px;color:var(--g500);line-height:1.68;display:block;
+  text-align:justify;text-justify:inter-word;hyphens:none;-webkit-hyphens:none}
+
+/* ================= RESPONSIVO =================
+   Dos cortes:
+   · 960px — tableta: el riel pasa de columna fija a barra superior.
+   · 620px — teléfono: las tablas se apilan como tarjetas y todo el layout
+     se vuelve de una columna.
+
+   Consideraciones específicas de teléfono resueltas aquí:
+   1. Los campos de texto llevan 16px como mínimo. Safari en iOS hace zoom
+      automático al enfocar un campo con fuente menor, y ya no regresa: la
+      página queda desplazada y el usuario tiene que corregir a mano.
+   2. Los objetivos táctiles suben a 44px, que es el mínimo utilizable con
+      el dedo. La equis de borrado medía 26px y se fallaba seguido.
+   3. Las tablas de seis columnas no caben ni con desplazamiento horizontal,
+      así que cada fila se convierte en una tarjeta con etiquetas tomadas
+      del atributo data-k.
+   4. Se evita 100vh: Apps Script sirve la página dentro de un iframe y
+      Safari móvil calcula mal esa unidad con la barra de direcciones.
+   ============================================================= */
+
+@media (max-width:960px){
+  .riel{position:static;width:auto;border-radius:0;
+    flex-direction:row;flex-wrap:wrap;align-items:center;padding:16px 20px;gap:18px}
+  .riel-m{padding:0;border-bottom:0;display:flex;align-items:center;gap:18px}
+  .riel-placa{margin-bottom:0;padding:13px 15px 11px;border-radius:15px}
+  .riel-placa::before{border-radius:14px 14px 40% 40%/14px 14px 12% 12%}
+  .riel-m img{width:112px}
+  .riel-n{display:flex;padding:0;flex:1;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .riel-e{display:none}
+  .nav-b{width:auto;white-space:nowrap;margin:0;padding:12px 18px;min-height:44px}
+  .nav-b::before{top:auto;bottom:0;left:0;transform:none;width:0;height:3px;transition:width .24s}
+  .nav-b.viva::before{width:100%;height:3px}
+  .riel-p{padding:0;background:none;border-top:0;display:flex;gap:12px;align-items:center}
+  .riel-u{margin-bottom:0}
+  .obra{margin-left:0}
+  .tela{padding:26px 20px 60px}
+  .cinta{padding:11px 20px}
+  .cinta-id{display:none}
+  .cuadro{grid-template-columns:1fr}
+  .tela{padding:26px 24px 60px}
+  .inicio-alto{padding:34px 28px;gap:28px}
+  .inicio-fig{width:112px;height:112px}
+  .cab-fig{width:130px;height:130px}
+  .btn-pri{width:100%;min-height:52px}
+  .refinar{gap:10px}
+  .ref-in{width:100%}
+  .ref-nota,.tipo-chip{margin-left:0}
+  .ref-quitar{align-self:flex-start}
+}
+
+@media (max-width:620px){
+  /* --- Riel en dos filas --- */
+  .riel{padding:14px 16px;gap:12px}
+  .riel-m{width:100%;justify-content:space-between}
+  .riel-placa{padding:11px 13px 10px;border-radius:14px}
+  .riel-m img{width:98px}
+  .riel-s{font-size:8.5px}
+  .riel-s b{font-size:11.5px}
+  .riel-n{order:3;width:100%;flex:none;padding-bottom:2px}
+  .riel-p{order:2;margin-left:auto}
+  .riel-u{gap:10px}
+  .ru-n{font-size:12px}
+  .riel-v{display:none}
+
+  .cinta{font-size:10px;padding:10px 16px;align-items:flex-start}
+  .tela{padding:20px 16px 50px}
+  .inicio{border-radius:var(--r-m)}
+  .inicio-alto{padding:28px 20px;gap:20px}
+  .inicio-fig{width:88px;height:88px;margin:0 auto}
+  .inicio-t{font-size:21px}
+  .inicio-p{font-size:13.5px}
+  .inicio-lista{grid-template-columns:1fr}
+  .inicio-it{padding:20px}
+  .cab-fig{display:none}
+  .cabecera{margin-bottom:22px;padding-bottom:18px;gap:16px}
+  .cabecera.panel-cab{padding:26px 22px}
+  .cabecera.panel-cab h1{font-size:26px}
+  .cab-der{width:100%;align-items:stretch}
+  .cabecera h1{font-size:23px}
+  .cabecera p{font-size:14px}
+  /* En pantallas angostas sí puede partirse: cabe más en dos líneas que
+     forzado en una que se salga del contenedor. */
+  .cab-ante{margin-bottom:11px;font-size:9px;letter-spacing:.13em;white-space:normal;align-items:flex-start}
+  .cab-estado{width:100%;padding:13px 16px}
+
+  /* --- Buscador: campo de 16px para evitar el zoom de iOS --- */
+  .consola{padding:16px;border-radius:var(--r-m)}
+  .campo-f{gap:12px}
+  .campo-e{min-width:0;width:100%}
+  .campo{font-size:16px;padding:16px 48px 16px 48px}
+  .lupa{left:18px;width:18px;height:18px}
+  .borrar{width:32px;height:32px;right:10px}
+  .refinar{flex-direction:column;align-items:stretch;gap:12px}
+  .ref-et{font-size:8.5px}
+  .ref-in{font-size:16px;padding:13px 18px;min-height:48px}
+  .tipo-chip{align-self:flex-start}
+
+  /* --- Barra de resultados apilada --- */
+  .barra{border-radius:var(--r-m);flex-direction:column;align-items:stretch}
+  .br-c{padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.09)}
+  .br-n{font-size:30px}
+  .br-e b{max-width:none}
+  .br-d{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.09)}
+  .br-lv{padding:6px 12px;margin:3px}
+  .br-a{width:100%;margin-left:0;padding:10px 14px;gap:8px}
+  .br-b{flex:1;justify-content:center;padding:14px 8px;font-size:9px;letter-spacing:.1em;min-height:46px}
+
+  /* --- Registro --- */
+  .reg{border-radius:var(--r-m);margin-top:12px}
+  .reg-franja{padding:11px 18px;gap:8px}
+  .reg-i{width:100%;margin-left:0;order:3}
+  .reg-encabezado{align-items:flex-start;padding:18px 18px 0}
+  .reg-nom{font-size:18px;margin-bottom:11px}
+  .estatus{font-size:11.5px;padding:8px 14px}
+  .dict{margin:16px 18px 0;padding:12px 14px;font-size:12px}
+  .cuadro{margin:16px 18px 20px}
+  .cotejo{margin:14px 18px 0}
+  .cot-par{gap:12px}
+  .cot-lado{min-width:100%}
+  .cot-vs{margin:0 auto}
+  .cot-lado code{font-size:14px}
+  .cel{padding:14px 16px}
+  .reg-p,.detalle{padding-left:18px;padding-right:18px}
+  .det-b{min-height:44px}
+  .det-c{font-size:10.5px;padding:14px}
+
+  /* --- Tablas apiladas como tarjetas --- */
+  .panel{border-radius:var(--r-m)}
+  .panel-h{padding:15px 18px}
+  .panel-b{padding:18px}
+  .tabla-e{overflow:visible}
+  table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  th{position:static}
+  .panel-h{padding:16px 18px;gap:11px}
+  .panel-h h2{font-size:10px;letter-spacing:.16em}
+  table,tbody,tr,td{display:block;width:100%}
+  tbody tr{background:var(--blanco);border:1px solid var(--g150);border-radius:var(--r-m);
+    padding:6px 4px;margin:12px 16px}
+  tbody tr:hover td{background:none}
+  td{border-bottom:1px solid var(--g150);padding:11px 14px;display:flex;
+    align-items:center;justify-content:space-between;gap:14px;text-align:right}
+  tr td:last-child{border-bottom:0}
+  td::before{content:attr(data-k);font-size:8px;font-weight:700;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--g400);text-align:left;flex-shrink:0}
+  td:empty,td:not([data-k]):empty{display:none}
+  .td-q{max-width:none;white-space:normal;word-break:break-word}
+  .td-acc{justify-content:flex-end}
+  .td-acc::before{content:''}
+  .btn-borde{min-height:44px;padding:11px 20px}
+  .btn-riesgo{margin-left:0;margin-top:8px}
+  .th-ord{padding-right:18px!important}
+  .td-acc{flex-wrap:wrap;gap:8px}
+  .vacio-tb{display:block;text-align:center}
+  .vacio-tb::before{content:''}
+
+  /* --- Formularios --- */
+  .forma{grid-template-columns:1fr;gap:16px}
+  .forma input,.forma select{font-size:16px;min-height:48px}
+  .forma textarea{font-size:16px}
+  .filtros{padding:16px 18px;gap:12px}
+  .filtro-rapido{width:100%;justify-content:space-between}
+  .fr-b{flex:1;padding:11px 8px;font-size:9px;letter-spacing:.08em}
+  .filtro-campo{flex:1;min-width:calc(50% - 6px)}
+  .filtro-campo.crece{min-width:100%}
+  .filtro-campo input,.filtro-campo select{font-size:16px;min-height:46px}
+  .sel-btn{font-size:16px;min-height:48px}
+  .filtro-campo .sel-btn{font-size:16px;min-height:46px}
+  .sel-op{padding:14px;font-size:15px;min-height:48px}
+  .filtros .btn-borde{flex:1;min-height:46px}
+  .panel-n{width:100%;margin-left:0;margin-top:6px}
+  .fichas{gap:10px}
+  .ficha{min-width:calc(50% - 5px);padding:18px 18px;border-radius:var(--r-m)}
+  .ficha-n{font-size:26px}
+
+  .vacio{padding:44px 22px;border-radius:var(--r-m)}
+  .acciones{flex-direction:column}
+  .acciones .btn{width:100%;min-height:48px}
+
+  /* --- Splash --- */
+  .sp-placa{padding:26px 23px 22px;border-radius:23px;margin-bottom:30px}
+  .sp-placa::before{border-radius:22px 22px 40% 40%/22px 22px 12% 12%}
+  .sp-logo{width:86px}
+
+/* Regla que se dibuja bajo la placa, entre ella y el nombre del sistema. */
+.sp-regla{width:0;height:1px;margin:0 auto 24px;
+  background:linear-gradient(90deg,transparent,rgba(253,185,19,.85),transparent);
+  animation:sRegla .95s .35s cubic-bezier(.4,0,.2,1) forwards}
+.sp-sis{font-size:11px;letter-spacing:.22em;text-indent:.22em}
+  .sp-bien{margin-top:40px}
+  .sp-nom{font-size:22px}
+}
+</style>
