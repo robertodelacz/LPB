@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+
+  <!-- Ícono de la pestaña. Sustituye al de Apps Script.
+       La dirección debe ser pública y devolver la imagen sin redirecciones:
+       las URL de Google Drive no funcionan aquí porque redirigen antes de
+       entregar el archivo. -->
+  <link rel="icon" type="image/png"
+        href="https://cualli.mx/wp-content/uploads/2022/07/cualli-bl@3x.png">
+  <link rel="shortcut icon" type="image/png"
+        href="https://cualli.mx/wp-content/uploads/2022/07/cualli-bl@3x.png">
+  <link rel="apple-touch-icon"
+        href="https://cualli.mx/wp-content/uploads/2022/07/cualli-bl@3x.png">
+
+  <?!= incluir_('Estilos') ?>
+</head>
+<body>
+
+<!-- ================= SPLASH ================= -->
+<div id="splash">
+  <div class="sp">
+    <div class="sp-placa">
+      <img class="sp-logo" src="https://cualli.mx/wp-content/uploads/2022/07/cualli-bl@3x.png"
+           alt="Financiera Cualli" onerror="this.style.display='none'">
+    </div>
+    <div class="sp-regla"></div>
+    <div class="sp-sis">Lista de Personas Bloqueadas</div>
+    <div class="sp-bien">
+      <div class="sp-hola">Bienvenido</div>
+      <div class="sp-nom" id="spNom"></div>
+      <div class="sp-rol" id="spRol"></div>
+    </div>
+    <svg class="sp-aro" viewBox="0 0 26 26">
+      <circle class="p" cx="13" cy="13" r="10.5"/>
+      <circle class="a" cx="13" cy="13" r="10.5"/>
+    </svg>
+  </div>
+</div>
+
+<!-- ================= RIEL ================= -->
+<aside class="riel">
+  <div class="riel-m">
+    <div class="riel-placa">
+      <img src="https://cualli.mx/wp-content/uploads/2022/07/cualli-bl@3x.png"
+           alt="Financiera Cualli" onerror="this.style.display='none'">
+    </div>
+    <div class="riel-s"><b>Personas Bloqueadas</b>Módulo de Consulta</div>
+  </div>
+
+  <nav class="riel-n">
+    <div class="riel-e">Operación</div>
+    <button class="nav-b viva" data-vista="Consulta">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>Consulta
+    </button>
+    <button class="nav-b" data-vista="Reporte">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3l9.5 17h-19L12 3z"/><path d="M12 10v4"/><path d="M12 17.4v.6"/></svg>
+      Reportar anomalía
+    </button>
+
+    <div class="riel-e" id="etAdmin" style="display:none;padding-top:20px">Administración</div>
+    <button class="nav-b" data-vista="Usuarios" id="navUsuarios" style="display:none">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/>
+        <path d="M16 5a3.5 3.5 0 010 7"/><path d="M17.5 14.5A6.5 6.5 0 0121.5 20"/></svg>Accesos
+    </button>
+    <button class="nav-b" data-vista="Sesiones" id="navSesiones" style="display:none">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+      Sesiones
+    </button>
+    <button class="nav-b" data-vista="Bitacora" id="navBitacora" style="display:none">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 3h11l4 4v14H5z"/><path d="M16 3v4h4"/>
+        <path d="M9 12h7"/><path d="M9 16h7"/></svg>Bitácora
+    </button>
+  </nav>
+
+  <div class="riel-p">
+    <div class="riel-u">
+      <div class="avatar" id="avatar"></div>
+      <div><div class="ru-n" id="ruNom">—</div><div class="ru-r" id="ruRol"></div></div>
+    </div>
+    <div class="riel-v" id="vigencia">
+      <span class="foco verde" id="foco"></span>
+      <span id="vigTxt">Cargando…</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ================= OBRA ================= -->
+<div class="obra">
+  <div class="cinta">
+    <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="10" width="16" height="11" rx="1.5"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+    <span><b>Confidencial</b> Prohibida su divulgación a terceros y al titular de los datos.
+    Este sistema no emite dictamen.</span>
+    <span class="cinta-id" id="cintaId"></span>
+  </div>
+
+  <main class="tela">
+
+    <!-- ===== CONSULTA ===== -->
+    <section class="vista viva" id="vConsulta">
+      <header class="cabecera panel-cab">
+        <div class="cab-txt">
+          <div class="cab-ante"><span class="cab-rombo"></span>Prevención de Lavado de Dinero y Financiamiento al Terrorismo</div>
+          <h1>Verificación en Lista<br>de Personas Bloqueadas</h1>
+          <span class="cab-hilo"></span>
+          <p>Coteje a una persona física o moral contra la Lista de Personas Bloqueadas.
+             El sistema reconoce el tipo de dato y tolera acentos,
+             errores de captura y apellidos en distinto orden.</p>
+        </div>
+
+        <div class="cab-der">
+          <div class="cab-fig">
+            <!-- ================================================================
+                 IMAGEN DEL ENCABEZADO
+
+                 Opción A · URL directa
+                 Pegue aquí la dirección de la imagen y descomente la línea.
+                 Debe ser accesible sin iniciar sesión (Drive requiere que el
+                 archivo esté compartido como "cualquier persona con el enlace").
+
+                 <img src="PEGUE_AQUI_LA_URL" alt="" onerror="this.style.display='none'">
+
+                 Opción B · Archivo de Drive (la que está activa)
+                 El servidor lee el archivo y lo incrusta. No requiere que el
+                 archivo sea público. El identificador se configura en API.gs,
+                 dentro de doGet, en la línea t.imgAccesos.
+
+                 Si ninguna funciona, se dibuja la ilustración de respaldo.
+                 ================================================================ -->
+            <? if (imgAccesos) { ?>
+              <img src="<?= imgAccesos ?>" alt="">
+            <? } else { ?>
+              <svg viewBox="0 0 130 130" fill="none">
+                <circle cx="65" cy="65" r="56" fill="#F4F5F8"/>
+                <circle cx="65" cy="65" r="56" stroke="#E2E6EC" stroke-width="1.5"/>
+                <circle cx="65" cy="52" r="16" fill="#C7CCD6"/>
+                <path d="M35 99a30 30 0 0160 0z" fill="#C7CCD6"/>
+                <circle cx="93" cy="93" r="25" fill="#FDB913"/>
+                <circle cx="93" cy="93" r="25" stroke="#fff" stroke-width="4"/>
+                <circle cx="93" cy="93" r="13.5" stroke="#15171C" stroke-width="3.4"/>
+                <path d="M83 103l20-20" stroke="#15171C" stroke-width="3.4" stroke-linecap="round"/>
+              </svg>
+            <? } ?>
+          </div>
+
+          <div class="cab-estado">
+            <span class="cab-foco verde" id="cabFoco"></span>
+            <div>
+              <div class="cab-k">Lista actualizada al</div>
+              <div class="cab-v" id="cabFecha">—</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="consola">
+        <div class="campo-f">
+          <div class="campo-e">
+            <input type="text" class="campo" id="q" autocomplete="off" spellcheck="false"
+                   placeholder="Nombre completo, razón social, RFC o CURP…">
+            <svg class="lupa" viewBox="0 0 24 24" stroke-linecap="round">
+              <circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>
+            <button class="borrar" id="btnBorrar" title="Borrar" aria-label="Borrar">
+              <svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <button class="btn btn-pri" id="btnBuscar">
+            <svg viewBox="0 0 24 24" stroke-linecap="round">
+              <circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>Consultar
+          </button>
+        </div>
+
+        <div class="refinar" id="refinar">
+          <label class="ref-et" for="rRfc">Refinar con RFC</label>
+          <input type="text" id="rRfc" class="ref-in" placeholder="Opcional" spellcheck="false">
+          <button class="ref-quitar" id="btnQuitarRfc" style="display:none" title="Quitar refinamiento">
+            <svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            Quitar
+          </button>
+          <span class="ref-nota">El RFC se utiliza únicamente para descartar homonimias.</span>
+          <span class="tipo-chip" id="tipoChip">Sin capturar</span>
+        </div>
+        <div class="ref-aviso" id="refAviso"></div>
+      </div>
+
+      <!-- Estado inicial. Ocupa el espacio donde aparecerán los resultados y
+           explica el alcance antes de la primera consulta. El JS lo sustituye
+           por completo al buscar. -->
+      <div id="salida">
+        <div class="inicio">
+          <div class="inicio-alto">
+            <div class="inicio-fig">
+              <svg viewBox="0 0 148 148" fill="none">
+                <circle cx="74" cy="74" r="62" fill="#FFFBEF"/>
+                <circle cx="74" cy="74" r="62" stroke="#F7DC96" stroke-width="1.5" stroke-dasharray="4 8"/>
+                <rect x="38" y="34" width="58" height="74" rx="7" fill="#fff" stroke="#C7CCD6" stroke-width="2"/>
+                <path d="M50 52h34M50 63h26M50 74h30" stroke="#C7CCD6" stroke-width="2.6" stroke-linecap="round"/>
+                <circle cx="88" cy="90" r="23" fill="#fff" stroke="#15171C" stroke-width="3.4"/>
+                <path d="M105 107l14 14" stroke="#15171C" stroke-width="4.4" stroke-linecap="round"/>
+                <path d="M79 90h18M88 81v18" stroke="#FDB913" stroke-width="3.4" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="inicio-txt">
+              <div class="inicio-t">Sin consultas realizadas</div>
+              <p class="inicio-p">Capture un nombre, una razón social, un RFC o un CURP para
+                 cotejarlo contra la Lista de Personas Bloqueadas. Los resultados aparecerán
+                 en este espacio, ordenados por nivel de coincidencia.</p>
+            </div>
+          </div>
+
+          <div class="inicio-lista">
+            <div class="inicio-it">
+              <div class="inicio-ico">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 7V5h16v2"/><path d="M9 20h6"/><path d="M12 5v15"/>
+                  <path d="M17 13.5l3.5 3.5M20.5 13.5L17 17"/>
+                </svg>
+              </div>
+              <div><b>Tolera errores de captura</b>
+                <span>Acentos, ñ, letras que suenan igual y apellidos en distinto orden.</span></div>
+            </div>
+
+            <div class="inicio-it">
+              <div class="inicio-ico">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 20v-6"/><path d="M10 20V9"/><path d="M16 20v-4"/><path d="M22 20V4"/>
+                  <path d="M2 20h20"/>
+                </svg>
+              </div>
+              <div><b>Muestra el nivel y el motivo</b>
+                <span>Cada coincidencia indica cómo se determinó, no solo un puntaje.</span></div>
+            </div>
+
+            <div class="inicio-it">
+              <div class="inicio-ico">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2l8 3.5v6c0 4.5-3.2 8.6-8 10.5-4.8-1.9-8-6-8-10.5v-6L12 2z"/>
+                  <path d="M9 11h6M9 14.5h4"/>
+                </svg>
+              </div>
+              <div><b>Queda registrada</b>
+                <span>Se asienta en la bitácora de control interno del Oficial de
+                  Cumplimiento, con usuario, fecha y criterio de búsqueda.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ===== REPORTE DE ANOMALÍA ===== -->
+    <section class="vista" id="vReporte">
+      <header class="cabecera">
+        <div class="cab-txt">
+          <div class="cab-ante"><span class="cab-rombo"></span>Canal de incidencias</div>
+          <h1>Reportar una anomalía</h1>
+          <p>Use este canal para informar un resultado dudoso, un registro mal capturado
+             o cualquier comportamiento del sistema que no corresponda. El reporte llega
+             al Oficial de Cumplimiento y queda asentado en la bitácora.</p>
+        </div>
+
+        <div class="cab-fig">
+          <svg viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="52" fill="#F4F5F8"/>
+            <circle cx="60" cy="60" r="52" stroke="#E2E6EC" stroke-width="1.5"/>
+            <rect x="34" y="30" width="46" height="58" rx="6" fill="#fff" stroke="#C7CCD6" stroke-width="2.4"/>
+            <path d="M44 46h26M44 56h20M44 66h23" stroke="#C7CCD6" stroke-width="2.4" stroke-linecap="round"/>
+            <circle cx="86" cy="84" r="23" fill="#FDB913"/>
+            <circle cx="86" cy="84" r="23" stroke="#fff" stroke-width="3.5"/>
+            <path d="M86 74v11" stroke="#15171C" stroke-width="3.4" stroke-linecap="round"/>
+            <path d="M86 92.4v.6" stroke="#15171C" stroke-width="3.6" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </header>
+
+      <div class="panel">
+        <div class="panel-h">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l9.5 17h-19L12 3z"/><path d="M12 10v4"/><path d="M12 17.4v.6"/></svg>
+          <h2>Detalle del reporte</h2>
+        </div>
+        <div class="panel-b">
+          <div class="forma">
+            <div>
+              <label for="rpTipo">Tipo de anomalía</label>
+              <select id="rpTipo">
+                <option value="RESULTADO_DUDOSO">Resultado dudoso o inesperado</option>
+                <option value="REGISTRO_INCORRECTO">Registro mal capturado en la lista</option>
+                <option value="NO_ENCONTRADO">Persona que debería aparecer y no aparece</option>
+                <option value="FALLA_SISTEMA">Falla del sistema</option>
+                <option value="OTRO">Otro</option>
+              </select>
+            </div>
+            <div>
+              <label for="rpConsulta">Consulta relacionada</label>
+              <input type="text" id="rpConsulta" placeholder="Nombre o RFC consultado (opcional)">
+            </div>
+          </div>
+          <div class="forma">
+            <div style="grid-column:1/-1">
+              <label for="rpDetalle">Descripción de lo ocurrido</label>
+              <!-- El texto de ejemplo describe únicamente lo que el usuario
+                   observa en pantalla. Un ejemplo anterior mencionaba revisar
+                   la lista, algo que quien reporta no puede hacer: ningún rol
+                   de consulta tiene acceso al listado, y sugerirlo contradice
+                   el propósito del sistema. -->
+              <textarea id="rpDetalle" rows="6"
+                placeholder="Indique qué capturó, qué resultado obtuvo y por qué le parece incorrecto."></textarea>
+              <p class="campo-ayuda">Describa únicamente lo que observó en pantalla. No es
+                 necesario que verifique nada por fuera del sistema: de eso se encarga
+                 Cumplimiento al revisar el reporte.</p>
+            </div>
+          </div>
+          <button class="btn btn-pri" id="btnReporte" style="padding:15px 32px">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 4l16 8-16 8 3-8z"/></svg>Enviar reporte
+          </button>
+          <div id="msgR"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ACCESOS ===== -->
+    <section class="vista" id="vUsuarios">
+      <header class="cabecera">
+        <div class="cab-txt">
+          <div class="cab-ante"><span class="cab-rombo"></span>Administración</div>
+          <h1>Control de accesos</h1>
+          <p>El acceso a la Lista de Personas Bloqueadas se otorga por necesidad operativa.
+             Toda alta, baja o cambio de rol queda registrado en la bitácora.</p>
+        </div>
+
+        <!-- Ilustración propia en SVG: no depende de un servidor externo ni
+             de una licencia de uso comercial. -->
+        <div class="cab-fig">
+          <svg viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="52" fill="#F4F5F8"/>
+            <circle cx="60" cy="60" r="52" stroke="#E2E6EC" stroke-width="1.5"/>
+            <circle cx="60" cy="47" r="15" fill="#C7CCD6"/>
+            <path d="M32 92a28 28 0 0156 0z" fill="#C7CCD6"/>
+            <circle cx="86" cy="86" r="23" fill="#FDB913"/>
+            <circle cx="86" cy="86" r="23" stroke="#fff" stroke-width="3.5"/>
+            <circle cx="86" cy="86" r="12.5" stroke="#15171C" stroke-width="3.2"/>
+            <path d="M77 95l18-18" stroke="#15171C" stroke-width="3.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </header>
+
+      <div class="panel">
+        <div class="panel-h">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0114 0"/></svg>
+          <h2>Alta de acceso</h2>
+        </div>
+        <div class="panel-b">
+          <div class="forma">
+            <div><label>Correo institucional</label><input type="email" id="uCorreo" placeholder="nombre@cualli.mx"></div>
+            <div><label>Nombre completo</label><input type="text" id="uNombre"></div>
+            <div><label>Área</label><input type="text" id="uArea"></div>
+            <div><label>Rol</label>
+              <select id="uRol">
+                <option value="CONSULTA">Consulta</option>
+                <option value="AUDITOR">Auditor — consulta y bitácora</option>
+                <option value="ADMIN">Administrador — control total</option>
+              </select>
+            </div>
+          </div>
+          <div class="forma">
+            <div style="grid-column:1/-1">
+              <label>Justificación del acceso (obligatoria)</label>
+              <input type="text" id="uJust" placeholder="Necesidad operativa que sustenta el acceso">
+            </div>
+          </div>
+          <button class="btn btn-pri" id="btnAlta" style="padding:14px 30px">Dar de alta</button>
+          <div id="msgU"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/>
+            <path d="M16 5a3.5 3.5 0 010 7"/></svg>
+          <h2>Accesos vigentes</h2>
+        </div>
+        <div class="panel-b sinp">
+          <div class="tabla-e">
+            <table>
+              <thead><tr>
+                <th class="th-ord" data-orden="nombre" onclick="ordenarUsuarios('nombre')">Nombre</th>
+                <th>Correo</th>
+                <th>Área</th>
+                <th class="th-ord ord" data-orden="rol" onclick="ordenarUsuarios('rol')" style="width:130px">Rol</th>
+                <th class="th-ord" data-orden="estado" onclick="ordenarUsuarios('estado')" style="width:130px">Estado</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="tblU"><tr><td colspan="6" class="vacio-tb">Cargando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SESIONES ===== -->
+    <section class="vista" id="vSesiones">
+      <header class="cabecera">
+        <div class="cab-txt">
+          <div class="cab-ante"><span class="cab-rombo"></span>Control interno</div>
+          <h1>Sesiones activas</h1>
+          <p>Las sesiones vencen tras 20 minutos sin actividad. Un administrador puede
+             cerrarlas de forma remota; el cierre surte efecto en la siguiente acción
+             del usuario y queda asentado en la bitácora.</p>
+        </div>
+
+        <div class="cab-fig">
+          <svg viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="52" fill="#F4F5F8"/>
+            <circle cx="60" cy="60" r="52" stroke="#E2E6EC" stroke-width="1.5"/>
+            <rect x="26" y="38" width="52" height="38" rx="5" fill="#fff" stroke="#C7CCD6" stroke-width="2.4"/>
+            <path d="M38 84h28" stroke="#C7CCD6" stroke-width="2.6" stroke-linecap="round"/>
+            <path d="M52 76v8" stroke="#C7CCD6" stroke-width="2.6"/>
+            <circle cx="86" cy="82" r="24" fill="#FDB913"/>
+            <circle cx="86" cy="82" r="24" stroke="#fff" stroke-width="3.5"/>
+            <circle cx="86" cy="82" r="13" stroke="#15171C" stroke-width="3" fill="none"/>
+            <path d="M86 75v7l5 3" stroke="#15171C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </header>
+
+      <div class="panel">
+        <div class="panel-h">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          <h2>Usuarios conectados</h2>
+          <button class="refrescar" id="btnRefrescarS" title="Actualizar">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 0115.5-6.2L21 8"/><path d="M21 3v5h-5"/>
+              <path d="M21 12a9 9 0 01-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>
+          </button>
+        </div>
+        <div class="panel-b sinp">
+          <div class="tabla-e">
+            <table>
+              <thead><tr>
+                <th>Usuario</th><th>Área</th><th style="width:110px">Rol</th>
+                <th style="width:190px">Dispositivo</th>
+                <th style="width:130px">Inicio</th>
+                <th style="width:110px">Inactivo</th>
+                <th style="width:110px">Vence en</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="tblS"><tr><td colspan="8" class="vacio-tb">Cargando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== BITÁCORA ===== -->
+    <section class="vista" id="vBitacora">
+      <header class="cabecera">
+        <div class="cab-txt">
+          <div class="cab-ante"><span class="cab-rombo"></span>Control interno</div>
+          <h1>Bitácora de consultas</h1>
+          <p>Registro íntegro e inalterable de la actividad del sistema. Constituye la
+             evidencia del control ante una revisión de la autoridad y es el único medio
+             para detectar un uso indebido de la lista.</p>
+        </div>
+
+        <div class="cab-fig">
+          <svg viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="52" fill="#F4F5F8"/>
+            <circle cx="60" cy="60" r="52" stroke="#E2E6EC" stroke-width="1.5"/>
+            <rect x="32" y="26" width="48" height="62" rx="6" fill="#fff" stroke="#C7CCD6" stroke-width="2.4"/>
+            <path d="M42 42h28M42 52h28M42 62h20M42 72h24" stroke="#C7CCD6" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M32 38h48" stroke="#C7CCD6" stroke-width="1.6"/>
+            <circle cx="86" cy="84" r="23" fill="#FDB913"/>
+            <circle cx="86" cy="84" r="23" stroke="#fff" stroke-width="3.5"/>
+            <path d="M78 84.5l5.5 5.5L95 78.5" stroke="#15171C" stroke-width="3.6"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </header>
+
+      <div class="fichas" id="fichas"></div>
+
+      <div class="panel">
+        <div class="panel-h">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 3h11l4 4v14H5z"/><path d="M16 3v4h4"/><path d="M9 12h7"/><path d="M9 16h7"/></svg>
+          <h2>Movimientos</h2>
+          <span class="panel-n" id="conteoB"></span>
+          <button class="refrescar" id="btnRefrescarB" title="Actualizar">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 0115.5-6.2L21 8"/><path d="M21 3v5h-5"/>
+              <path d="M21 12a9 9 0 01-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>
+          </button>
+        </div>
+
+        <div class="filtros">
+          <div class="filtro-rapido" id="rangos">
+            <button class="fr-b viva" data-dias="1">Hoy</button>
+            <button class="fr-b" data-dias="7">7 días</button>
+            <button class="fr-b" data-dias="30">30 días</button>
+            <button class="fr-b" data-dias="0">Todo</button>
+          </div>
+
+          <div class="filtro-campo">
+            <label for="fDesde">Desde</label>
+            <input type="date" id="fDesde">
+          </div>
+          <div class="filtro-campo">
+            <label for="fHasta">Hasta</label>
+            <input type="date" id="fHasta">
+          </div>
+          <div class="filtro-campo">
+            <label for="fAccion">Acción</label>
+            <select id="fAccion"><option value="">Todas</option></select>
+          </div>
+          <div class="filtro-campo crece">
+            <label for="fTexto">Usuario o consulta</label>
+            <input type="text" id="fTexto" placeholder="Buscar en los registros…">
+          </div>
+
+          <button class="btn btn-borde" id="btnFiltrar">Aplicar</button>
+          <button class="btn btn-borde" id="btnLimpiarF">Limpiar</button>
+        </div>
+        <div class="panel-b sinp">
+          <div class="tabla-e">
+            <table>
+              <thead><tr>
+                <th style="width:140px">Fecha y hora</th><th>Usuario</th>
+                <th style="width:140px">Acción</th><th>Consulta</th>
+                <th style="width:80px;text-align:right">Result.</th>
+                <th style="width:125px">Nivel máx.</th>
+              </tr></thead>
+              <tbody id="tblB"><tr><td colspan="6" class="vacio-tb">Cargando movimientos…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Aviso de sesión cerrada. Cubre la pantalla completa y borra lo que
+     estuviera a la vista, que es el punto: un equipo abandonado no debe
+     dejar datos de la lista legibles. -->
+<div id="vencida" class="vencida">
+  <div class="vencida-caja">
+    <svg class="vencida-ico" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>
+    </svg>
+    <div class="vencida-t">Sesión cerrada</div>
+    <p class="vencida-p" id="vencidaTxt"></p>
+    <button class="btn btn-pri" id="btnReiniciar" style="margin-top:26px">
+      Iniciar nueva sesión
+    </button>
+  </div>
+</div>
+
+<script>var APP_URL = '<?= appUrl ?>';</script>
+<?!= incluir_('Script') ?>
+</body>
+</html>
