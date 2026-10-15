@@ -62,7 +62,12 @@ var LPB_ABREVIATURAS = {
  * ambas "S.A. DE C.V."
  */
 var LPB_SUFIJOS_SOCIALES = [
+  // Detectados sobre datos reales y ausentes en la primera versión:
+  // "S.P.R. DE R.L. DE C.V." dejaba el residuo "DE RL DE CV" pegado al
+  // núcleo, y "S.A.S." no se reconocía en absoluto.
+  'SPR DE RL DE CV', 'SPR DE RL', 'SC DE RL DE CV', 'SAS DE CV',
   'SAPI DE CV', 'SAB DE CV', 'S DE RL DE CV', 'SA DE CV', 'SC DE RL',
+  'SAS', 'SNC', 'SCS', 'SCA',
   'SOFOM ENR', 'SOFOM ER', 'SOFOM', 'SOFIPO', 'SOCAP',
   'SAPI', 'SAB', 'SA', 'SC', 'AC', 'IAP', 'SRL', 'SPR', 'SCL', 'ENR', 'ER',
   'SOCIEDAD ANONIMA DE CAPITAL VARIABLE',
@@ -248,4 +253,71 @@ function lpbExtraerAlias_(texto) {
     }
   }
   return alias;
+}
+
+/**
+ * Separa una celda que contiene VARIAS identidades en nombres individuales.
+ *
+ * HALLAZGO SOBRE DATOS REALES — la columna de nombre no siempre trae UNA
+ * persona. Ejemplo textual de la lista (fila 36):
+ *
+ *   "MANUEL RODOLFO TRILLO HERNANDEZ y/o MANUEL GARZA ESPINOZA y/o
+ *    JUAN HELU GARCIA y/o LADISLAO VAZQUEZ LOPEZ"
+ *
+ * Son cuatro identidades del mismo sujeto, cada una con su propio RFC en la
+ * columna correspondiente ("TIHM590715 o GAEM600607 o ...").
+ *
+ * Sin separar, el normalizador producía UN nombre de 16 tokens. Buscar
+ * cualquiera de las cuatro personas por su nombre daba 65 puntos — banda
+ * AMPLIADA, por debajo del umbral de despliegue. La persona estaba en la
+ * lista, con su nombre completo escrito, y el buscador NO la mostraba.
+ *
+ * GUARDA CONTRA FALSOS CORTES: la separación solo se acepta si TODOS los
+ * fragmentos resultantes parecen nombres completos (2 a 8 tokens). Así una
+ * razón social legítima como "ALFA Y GAMA, S.A. DE C.V." no se parte.
+ *
+ * @param {string} texto
+ * @return {string[]}  siempre al menos un elemento
+ */
+function lpbSepararNombres_(texto) {
+  var original = String(texto || '').trim();
+  if (!original) return [];
+
+  var separadores = [
+    /\s+Y\s*\/\s*O\s+/gi,        // "y/o"
+    /\s+AND\s*\/\s*OR\s+/gi,     // "and/or"
+    /\s+ALIAS\s+/gi,
+    /\s+A\.?K\.?A\.?\s+/gi,
+    /\s+O\s+BIEN\s+/gi,
+    /\s+\/\s+/g,                  // diagonal aislada entre espacios
+    /\s+O\s+/gi                    // " o " suelto — el más riesgoso, va al final
+  ];
+
+  var mejor = [original];
+  for (var i = 0; i < separadores.length; i++) {
+    var partes = mejor.length > 1 ? mejor : [original];
+    var nuevo = [];
+    partes.forEach(function (p) {
+      p.split(separadores[i]).forEach(function (x) {
+        var t = x.trim();
+        if (t) nuevo.push(t);
+      });
+    });
+    if (nuevo.length > mejor.length && lpbFragmentosValidos_(nuevo)) mejor = nuevo;
+  }
+  return mejor;
+}
+
+/**
+ * ¿Todos los fragmentos parecen nombres completos?
+ * @param {string[]} fragmentos
+ * @return {boolean}
+ */
+function lpbFragmentosValidos_(fragmentos) {
+  if (fragmentos.length < 2) return false;
+  for (var i = 0; i < fragmentos.length; i++) {
+    var n = lpbNormalizar_(fragmentos[i]);
+    if (n.tokens.length < 2 || n.tokens.length > 8) return false;
+  }
+  return true;
 }
