@@ -74,6 +74,7 @@ function lpbReescribirFonetico_(t) {
   t = t.replace(/CI/g, 'SI');
   t = t.replace(/Z/g, 'S');     // GUZMAN -> GUSMAN
   t = t.replace(/C/g, 'K');     // el resto de las C suenan /k/
+  t = t.replace(/Q/g, 'K');     // Q suelta (JOAQIN mal escrito) -> JOAKIN
   t = t.replace(/GE/g, 'JE');   // GERARDO -> JERARDO
   t = t.replace(/GI/g, 'JI');   // GIMENEZ -> JIMENES
   t = t.replace(/V/g, 'B');     // VARGAS -> BARGAS
