@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+    :root{
+      --oro:#FDB913; --oro-n:#FFF9E9;
+      --g950:#0C0E12; --g900:#15171C; --g500:#6B7280; --g400:#98A0AC;
+      --g200:#E2E6EC; --g150:#EDEFF3; --g100:#F4F5F8; --g50:#FAFBFC;
+      --rojo:#A11C12; --rojo-o:#7A140D;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'IBM Plex Sans',-apple-system,sans-serif;background:var(--g950);
+      color:var(--g900);min-height:100vh;display:flex;align-items:center;justify-content:center;
+      padding:28px;-webkit-font-smoothing:antialiased;position:relative;overflow:hidden}
+    body::before{content:'';position:absolute;inset:0;
+      background:radial-gradient(ellipse 55% 45% at 50% 45%,rgba(161,28,18,.16),transparent 70%)}
+    body::after{content:'';position:absolute;inset:0;opacity:.35;
+      background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),
+                       linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);
+      background-size:46px 46px}
+
+    .caja{position:relative;max-width:470px;width:100%;background:#fff;border-radius:22px;
+      overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.45),0 4px 12px rgba(0,0,0,.3);
+      animation:sube .55s cubic-bezier(.2,.7,.3,1) both}
+    @keyframes sube{from{opacity:0;transform:translateY(22px) scale(.97)}to{opacity:1;transform:none}}
+
+    /* Bloque superior rojo: el estado se comunica antes de leer una palabra */
+    .alto{background:var(--rojo);border-bottom:4px solid var(--rojo-o);color:#fff;
+      padding:36px 32px 30px;text-align:center}
+    .alto svg{width:46px;height:46px;margin:0 auto 18px;stroke:currentColor;fill:none;
+      stroke-width:1.7;opacity:.92}
+    .alto h1{font-size:20px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+
+    .cuerpo{padding:34px 34px 32px;text-align:center;}
+    /* El logotipo va directo sobre la tarjeta: su texto es gris oscuro y el
+       arco dorado, así que sobre blanco se lee sin necesidad de placa. */
+    .logo{width:200px;max-width:74%;height:auto;margin:0 auto 30px;display:block}
+
+    p{font-size:15.5px;line-height:1.75;color:var(--g500);
+      text-align:justify;text-justify:inter-word;
+      hyphens:none;-webkit-hyphens:none;-ms-hyphens:none;
+      word-break:normal;overflow-wrap:break-word}
+    p b{color:var(--g900);font-weight:600}
+
+    .nota{margin-top:28px;padding:20px 22px;background:var(--g50);border-radius:14px;
+      border:1px solid var(--g150)}
+    .nota p{font-size:12.5px;line-height:1.72}
+    .sello{margin-top:16px;padding-top:15px;border-top:1px solid var(--g150);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;
+      text-transform:uppercase;color:var(--rojo);font-weight:700}
+    .punto{width:7px;height:7px;border-radius:50%;background:var(--rojo);flex-shrink:0;
+      animation:lat 1.8s ease-in-out infinite}
+    @keyframes lat{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(161,28,18,.4)}
+                   50%{opacity:.5;box-shadow:0 0 0 5px rgba(161,28,18,0)}}
+  </style>
+</head>
+<body>
+  <div class="caja">
+    <div class="alto">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="M12 8v5"/><path d="M12 16.4v.6"/>
+      </svg>
+      <h1>Acceso restringido</h1>
+    </div>
+
+    <div class="cuerpo">
+      <img class="logo" src="https://cualli.mx/wp-content/uploads/2022/07/cualli-bl@3x.png"
+           alt="Financiera Cualli" onerror="this.style.display='none'">
+
+      <p>Su cuenta no está autorizada para consultar la Lista de Personas
+         Bloqueadas. El acceso a este sistema se otorga por necesidad operativa
+         y lo autoriza el <b>Oficial de Cumplimiento</b>.</p>
+
+      <div class="nota">
+        <p>Si requiere acceso para el desempeño de sus funciones, solicítelo al
+           <b>Oficial de Cumplimiento</b> indicando el motivo.</p>
+        <div class="sello">
+          <span>Intento registrado en bitácora</span>
+          <span class="punto"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
